@@ -1,0 +1,18 @@
+﻿{
+  "block.squadpattern.victory_point": "Victory Point",
+  "block.squadpattern.normal_point": "Normal Point",
+  "block.squadpattern.ammo_point": "Ammo Point",
+  "block.squadpattern.oil_point": "Oil Point",
+  "item.squadpattern.victory_point": "Victory Point",
+  "item.squadpattern.normal_point": "Normal Point",
+  "item.squadpattern.ammo_point": "Ammo Point",
+  "item.squadpattern.oil_point": "Oil Point",
+  "key.categories.squadpattern": "Squad Pattern",
+  "key.squadpattern.hud_config": "Open HUD Config",
+  "message.squadpattern.victory_point.chunk_duplicate": "Only one Victory Point is allowed per chunk.",
+  "message.squadpattern.victory_point.protected": "Victory Point is protected. OP permission required to break.",
+  "message.squadpattern.capture_point.chunk_duplicate": "Only one capture point is allowed per chunk.",
+  "message.squadpattern.capture_point.protected": "Capture point is protected. OP permission required to break.",
+  "hud.squadpattern.ammo": "Ammo",
+  "hud.squadpattern.oil": "Oil"
+}

@@ -16,7 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class VictoryMatchManager {
     public static final VictoryMatchManager INSTANCE = new VictoryMatchManager();
 
-    public record TeamSide(String name, int color) {}
+    public record TeamSide(String name, int color) {
+    }
 
     public static final class PointSnapshot {
         public long pos;
@@ -42,9 +43,9 @@ public final class VictoryMatchManager {
     }
 
     private final Map<String, MatchState> states = new ConcurrentHashMap<>();
-    private long tick;
 
-    private VictoryMatchManager() {}
+    private VictoryMatchManager() {
+    }
 
     public void startMatch(SquadMatchService.ActiveMatchView ctx) {
         MatchState s = new MatchState();
@@ -71,10 +72,10 @@ public final class VictoryMatchManager {
         if (event.phase != TickEvent.Phase.END || event.getServer() == null) {
             return;
         }
-        tick++;
         drainByOwnedVictoryPoints(event.getServer());
-        produceTeamResources();
-        if (tick % 20L == 0L) {
+        int tickCount = event.getServer().getTickCount();
+        produceTeamResources(tickCount);
+        if (tickCount % 20L == 0L) {
             syncHud(event.getServer());
         }
     }
@@ -117,9 +118,9 @@ public final class VictoryMatchManager {
         }
     }
 
-    private void produceTeamResources() {
+    private void produceTeamResources(int tickCount) {
         int cycleTicks = Math.max(1, SquadConfig.RESOURCE_CYCLE_SECONDS.get() * 20);
-        if (tick % cycleTicks != 0L) {
+        if (tickCount % cycleTicks != 0L) {
             return;
         }
         for (VictoryPointBlockEntity point : VictoryPointBlockEntity.ACTIVE_POINTS) {

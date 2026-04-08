@@ -14,8 +14,6 @@ public final class FtbTeamsCompat {
 
     private final Map<String, Set<UUID>> createdPartyTeamIdsByMap = new HashMap<>();
 
-    private FtbTeamsCompat() {}
-
     public void syncMapTeams(String mapId, MinecraftServer server, String teamAName, Set<UUID> teamAPlayers, String teamBName, Set<UUID> teamBPlayers) {
         if (mapId == null || server == null) return;
         if (!isAvailableAndLoaded()) return;

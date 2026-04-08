@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class ClientHudState {
-    private ClientHudState() {}
 
     public static String mapId;
     public static String teamA;

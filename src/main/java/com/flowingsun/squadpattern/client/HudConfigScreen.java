@@ -2,7 +2,6 @@ package com.flowingsun.squadpattern.client;
 
 import com.flowingsun.squadpattern.config.SquadConfig;
 import net.minecraft.client.OptionInstance;
-import net.minecraft.client.Options;
 import net.minecraft.client.gui.components.OptionsList;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -35,7 +34,7 @@ public class HudConfigScreen extends Screen {
                 (txt, v) -> Component.literal(key + ": " + String.format("%.2f", v)),
                 OptionInstance.UnitDouble.INSTANCE,
                 value.get(),
-                v -> value.set(v)
+                value::set
         );
     }
 

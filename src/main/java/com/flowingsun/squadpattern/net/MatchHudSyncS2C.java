@@ -24,7 +24,9 @@ public class MatchHudSyncS2C {
     public final int oilB;
     public final List<PointView> points;
 
-    public record PointView(BlockPos pos, float progressSigned, String ownerTeam, boolean contested, boolean capturing) {}
+    public record PointView(BlockPos pos, float progressSigned, String ownerTeam, boolean contested,
+                            boolean capturing) {
+    }
 
     public MatchHudSyncS2C(
             String mapId,

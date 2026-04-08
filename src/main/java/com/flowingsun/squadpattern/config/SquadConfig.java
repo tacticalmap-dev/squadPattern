@@ -3,7 +3,6 @@ package com.flowingsun.squadpattern.config;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 public final class SquadConfig {
-    private SquadConfig() {}
 
     public static final ForgeConfigSpec COMMON_SPEC;
     public static final ForgeConfigSpec CLIENT_SPEC;

@@ -30,13 +30,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
@@ -49,14 +49,15 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.concurrent.CompletableFuture;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class SquadMatchService {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Type MAPS_TYPE = new TypeToken<Map<String, MapPreset>>() {}.getType();
+    private static final Type MAPS_TYPE = new TypeToken<Map<String, MapPreset>>() {
+    }.getType();
     private static final int TEAM_A_COLOR = 0xFF4444;
     private static final int TEAM_B_COLOR = 0x4488FF;
 
@@ -72,7 +73,8 @@ public final class SquadMatchService {
             int colorB,
             Set<UUID> teamAPlayers,
             Set<UUID> teamBPlayers
-    ) {}
+    ) {
+    }
 
     public record PlayerMatchContext(
             String mapId,
@@ -82,7 +84,8 @@ public final class SquadMatchService {
             int colorA,
             String teamB,
             int colorB
-    ) {}
+    ) {
+    }
 
     private final Path storageFile;
     private final Path presetRoot;
@@ -1653,7 +1656,8 @@ public final class SquadMatchService {
         }
     }
 
-    private record PlayerAssignment(String mapId, String team) {}
+    private record PlayerAssignment(String mapId, String team) {
+    }
 
     private static final class PendingTeleport {
         UUID playerId;

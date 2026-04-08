@@ -92,8 +92,7 @@ public class SquadHudOverlay {
         float step = (float) (Math.PI / 9.0D);
         for (int j = 0; j < fanCount; j++) {
             float a = phase - j * step;
-            int alpha = 220 - j * 24;
-            if (alpha < 40) alpha = 40;
+            int alpha = Math.max(40, 220 - j * 24);
             int px = Math.round(cx + (float) Math.cos(a) * radius);
             int py = Math.round(cy + (float) Math.sin(a) * radius);
             int color = (alpha << 24) | 0x00E8FFFF;

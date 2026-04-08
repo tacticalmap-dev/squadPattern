@@ -3,19 +3,19 @@ package com.flowingsun.squadpattern.vp;
 import com.flowingsun.squadpattern.config.SquadConfig;
 import com.flowingsun.squadpattern.match.SquadMatchService;
 import com.mojang.logging.LogUtils;
-import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import org.slf4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import org.slf4j.Logger;
 
 public class VictoryPointBlockEntity extends BlockEntity {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -84,7 +84,7 @@ public class VictoryPointBlockEntity extends BlockEntity {
         List<ServerPlayer> players = level.getEntitiesOfClass(ServerPlayer.class, zone, p -> !p.isSpectator());
         for (ServerPlayer player : players) {
             UUID pid = player.getUUID();
-            String playerTeam = null;
+            String playerTeam;
             if (match.teamAPlayers().contains(pid)) {
                 playerTeam = teamA;
             } else if (match.teamBPlayers().contains(pid)) {
@@ -93,9 +93,7 @@ public class VictoryPointBlockEntity extends BlockEntity {
                 // Fallback to runtime assignment map for compatibility with older states.
                 playerTeam = SquadMatchService.INSTANCE.teamForPlayer(match.mapId(), pid);
             }
-            if (playerTeam != null) {
-                countByTeam.merge(playerTeam, 1, Integer::sum);
-            }
+            countByTeam.merge(playerTeam, 1, Integer::sum);
         }
 
         int a = countByTeam.getOrDefault(teamA, 0);

@@ -1443,7 +1443,7 @@ public final class SquadMatchService {
 
         evacuatePlayersInWorld(server, worldId);
         unloadWorld(server, worldId);
-        multiworldDeleteWorld(worldId.toString());
+        multiworldDeleteWorld(server, worldId);
         deleteDirectory(worldDir);
         deleteDirectory(legacyDir);
         copyDirectory(backupDir, worldDir);
@@ -1542,15 +1542,32 @@ public final class SquadMatchService {
         );
     }
 
-    private void multiworldDeleteWorld(String worldId) {
+    private void multiworldDeleteWorld(MinecraftServer server, ResourceLocation worldId) {
+        if (server == null || worldId == null) {
+            return;
+        }
+
+        // Multiworld command path is more resilient across implementations.
+        if (getLevel(server, worldId) != null) {
+            runServerCommand(server, "mw delete " + worldId);
+        }
+        if (getLevel(server, worldId) == null) {
+            return;
+        }
+
+        String id = worldId.toString();
         try {
             Class<?> mw = Class.forName("me.isaiah.multiworld.MultiworldMod");
             Object creator = mw.getMethod("get_world_creator").invoke(null);
             if (creator != null) {
-                creator.getClass().getMethod("delete_world", String.class).invoke(creator, worldId);
+                creator.getClass().getMethod("delete_world", String.class).invoke(creator, id);
             }
         } catch (Exception ex) {
-            LOGGER.warn("Failed to call Multiworld delete_world for {}", worldId, ex);
+            LOGGER.warn("Failed to call Multiworld delete_world for {}", id, ex);
+        }
+
+        if (getLevel(server, worldId) != null) {
+            LOGGER.warn("World still loaded after delete attempt: {}", worldId);
         }
     }
 

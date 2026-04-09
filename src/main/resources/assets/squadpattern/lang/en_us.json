@@ -14,5 +14,7 @@
   "message.squadpattern.capture_point.chunk_duplicate": "Only one capture point is allowed per chunk.",
   "message.squadpattern.capture_point.protected": "Capture point is protected. OP permission required to break.",
   "hud.squadpattern.ammo": "Ammo",
-  "hud.squadpattern.oil": "Oil"
+  "hud.squadpattern.oil": "Oil",
+  "hud.squadpattern.return_to_map": "Return to Map",
+  "hud.squadpattern.return_to_map_countdown": "Return to Map: %ss"
 }

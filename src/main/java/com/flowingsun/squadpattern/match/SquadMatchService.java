@@ -31,7 +31,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
@@ -60,6 +59,8 @@ public final class SquadMatchService {
     }.getType();
     private static final int TEAM_A_COLOR = 0xFF4444;
     private static final int TEAM_B_COLOR = 0x4488FF;
+    private static final int RETURN_MAP_WARNING_RANGE_BLOCKS = 16;
+    private static final int RETURN_MAP_COUNTDOWN_SECONDS = 30;
 
     public static final SquadMatchService INSTANCE = new SquadMatchService();
 
@@ -96,6 +97,7 @@ public final class SquadMatchService {
     private final Map<ResourceLocation, String> worldToMapId = new ConcurrentHashMap<>();
     private final Map<UUID, String> disconnectedMatchByPlayer = new ConcurrentHashMap<>();
     private final Map<UUID, PendingTeleport> pendingTeleports = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> outOfBoundsDeadlineTickByPlayer = new ConcurrentHashMap<>();
     private long maintenanceTick;
 
     private SquadMatchService() {
@@ -238,14 +240,12 @@ public final class SquadMatchService {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             sendHudClear(player);
         }
-        for (ActiveMatch match : new ArrayList<>(activeMatches.values())) {
-            restoreWorldBorderForMatch(server, match);
-        }
         activeMatches.clear();
         playerAssignments.clear();
         worldToMapId.clear();
         disconnectedMatchByPlayer.clear();
         pendingTeleports.clear();
+        outOfBoundsDeadlineTickByPlayer.clear();
         maintenanceTick = 0L;
     }
 
@@ -255,6 +255,7 @@ public final class SquadMatchService {
             return;
         }
         processPendingTeleports(event.getServer());
+        tickReturnToMapState(event.getServer());
         maintenanceTick++;
         if (maintenanceTick % 40L != 0L) {
             return;
@@ -267,6 +268,7 @@ public final class SquadMatchService {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
+        outOfBoundsDeadlineTickByPlayer.remove(player.getUUID());
         PlayerAssignment assignment = playerAssignments.get(player.getUUID());
         if (assignment == null) {
             return;
@@ -319,6 +321,42 @@ public final class SquadMatchService {
                 match.teamB,
                 match.colorB
         ));
+    }
+
+    // -1: hidden, 0: warning text only, >0: outside countdown seconds.
+    public int returnToMapSecondsForHud(ServerPlayer player) {
+        if (player == null) {
+            return -1;
+        }
+        PlayerAssignment assignment = playerAssignments.get(player.getUUID());
+        if (assignment == null) {
+            return -1;
+        }
+        ActiveMatch match = activeMatches.get(assignment.mapId());
+        if (match == null || match.bound1 == null || match.bound2 == null) {
+            return -1;
+        }
+        if (!player.serverLevel().dimension().location().equals(match.worldId)) {
+            return -1;
+        }
+
+        MapBounds bounds = resolveBounds(match);
+        double x = player.getX();
+        double z = player.getZ();
+        if (isOutsideBounds(x, z, bounds)) {
+            MinecraftServer server = player.getServer();
+            long now = server == null ? 0L : server.getTickCount();
+            Long deadline = outOfBoundsDeadlineTickByPlayer.get(player.getUUID());
+            if (deadline == null) {
+                return RETURN_MAP_COUNTDOWN_SECONDS;
+            }
+            int seconds = (int) Math.ceil((deadline - now) / 20.0D);
+            return Math.max(1, seconds);
+        }
+        if (isInsideWarningRange(x, z, bounds)) {
+            return 0;
+        }
+        return -1;
     }
 
     public String teamForPlayer(String mapId, UUID playerId) {
@@ -718,7 +756,6 @@ public final class SquadMatchService {
         clearPlayersInventory(server, blue);
         teleportPlayersToSpawn(server, level, preset.redSpawn, red, mapId);
         teleportPlayersToSpawn(server, level, preset.blueSpawn, blue, mapId);
-        applyWorldBorderForMatch(level, match);
 
         VictoryMatchManager.INSTANCE.startMatch(match.view());
         FtbTeamsCompat.INSTANCE.syncMapTeams(mapId, server, "red", red, "blue", blue);
@@ -747,15 +784,16 @@ public final class SquadMatchService {
 
         for (UUID uuid : match.playersA) {
             playerAssignments.remove(uuid);
+            outOfBoundsDeadlineTickByPlayer.remove(uuid);
         }
         for (UUID uuid : match.playersB) {
             playerAssignments.remove(uuid);
+            outOfBoundsDeadlineTickByPlayer.remove(uuid);
         }
         pendingTeleports.keySet().removeIf(uuid -> match.playersA.contains(uuid) || match.playersB.contains(uuid));
 
         VictoryMatchManager.INSTANCE.resetMap(match.mapId);
         FtbTeamsCompat.INSTANCE.disbandMapTeams(match.mapId, server);
-        restoreWorldBorderForMatch(server, match);
 
         if (restorePreset) {
             restorePresetWorld(server, match.mapName, match.worldId);
@@ -783,39 +821,71 @@ public final class SquadMatchService {
         SquadNetwork.sendTo(player, new MatchHudClearS2C());
     }
 
-    private void applyWorldBorderForMatch(ServerLevel level, ActiveMatch match) {
-        if (match.bound1 == null || match.bound2 == null) {
+    private void tickReturnToMapState(MinecraftServer server) {
+        if (activeMatches.isEmpty()) {
+            outOfBoundsDeadlineTickByPlayer.clear();
             return;
         }
-        WorldBorder border = level.getWorldBorder();
-        match.worldBorderBackup = BorderSnapshot.capture(border);
 
+        long now = server.getTickCount();
+        outOfBoundsDeadlineTickByPlayer.keySet().removeIf(uuid -> {
+            PlayerAssignment assignment = playerAssignments.get(uuid);
+            return assignment == null || !activeMatches.containsKey(assignment.mapId());
+        });
+
+        for (Map.Entry<UUID, PlayerAssignment> entry : playerAssignments.entrySet()) {
+            UUID playerId = entry.getKey();
+            ActiveMatch match = activeMatches.get(entry.getValue().mapId());
+            if (match == null || match.bound1 == null || match.bound2 == null) {
+                outOfBoundsDeadlineTickByPlayer.remove(playerId);
+                continue;
+            }
+
+            ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+            if (player == null || !player.serverLevel().dimension().location().equals(match.worldId)) {
+                outOfBoundsDeadlineTickByPlayer.remove(playerId);
+                continue;
+            }
+
+            MapBounds bounds = resolveBounds(match);
+            if (isOutsideBounds(player.getX(), player.getZ(), bounds)) {
+                long deadline = outOfBoundsDeadlineTickByPlayer.computeIfAbsent(
+                        playerId,
+                        ignored -> now + RETURN_MAP_COUNTDOWN_SECONDS * 20L
+                );
+                if (now >= deadline) {
+                    outOfBoundsDeadlineTickByPlayer.remove(playerId);
+                    player.kill();
+                }
+            } else {
+                outOfBoundsDeadlineTickByPlayer.remove(playerId);
+            }
+        }
+    }
+
+    private MapBounds resolveBounds(ActiveMatch match) {
         int minX = Math.min(match.bound1.x, match.bound2.x);
         int maxX = Math.max(match.bound1.x, match.bound2.x);
         int minZ = Math.min(match.bound1.z, match.bound2.z);
         int maxZ = Math.max(match.bound1.z, match.bound2.z);
-
-        double width = Math.max(1.0D, (maxX - minX) + 1.0D);
-        double depth = Math.max(1.0D, (maxZ - minZ) + 1.0D);
-        // World border is square, so use the larger side to fully cover the selected area.
-        double size = Math.max(width, depth);
-        double centerX = (minX + maxX + 1.0D) / 2.0D;
-        double centerZ = (minZ + maxZ + 1.0D) / 2.0D;
-
-        border.setCenter(centerX, centerZ);
-        border.setSize(size);
+        return new MapBounds(minX, maxX, minZ, maxZ);
     }
 
-    private void restoreWorldBorderForMatch(MinecraftServer server, ActiveMatch match) {
-        if (match.worldBorderBackup == null) {
-            return;
+    private boolean isOutsideBounds(double x, double z, MapBounds bounds) {
+        return x < bounds.minX || x > (bounds.maxX + 1.0D)
+                || z < bounds.minZ || z > (bounds.maxZ + 1.0D);
+    }
+
+    private boolean isInsideWarningRange(double x, double z, MapBounds bounds) {
+        if (isOutsideBounds(x, z, bounds)) {
+            return false;
         }
-        ServerLevel level = getLevel(server, match.worldId);
-        if (level == null) {
-            return;
-        }
-        match.worldBorderBackup.apply(level.getWorldBorder());
-        match.worldBorderBackup = null;
+        double dLeft = x - bounds.minX;
+        double dRight = (bounds.maxX + 1.0D) - x;
+        double dTop = z - bounds.minZ;
+        double dBottom = (bounds.maxZ + 1.0D) - z;
+        double nearest = Math.min(Math.min(dLeft, dRight), Math.min(dTop, dBottom));
+        return nearest <= RETURN_MAP_WARNING_RANGE_BLOCKS;
     }
 
     private ActiveMatch findActiveByMapName(String mapName) {
@@ -1639,7 +1709,6 @@ public final class SquadMatchService {
         final Set<UUID> playersB = new HashSet<>();
         BoundPoint bound1;
         BoundPoint bound2;
-        BorderSnapshot worldBorderBackup;
 
         ActiveMatchView view() {
             return new ActiveMatchView(
@@ -1698,34 +1767,6 @@ public final class SquadMatchService {
         int z;
     }
 
-    private static final class BorderSnapshot {
-        double centerX;
-        double centerZ;
-        double size;
-        int warningBlocks;
-        int warningTime;
-        double damagePerBlock;
-        double damageSafeZone;
-
-        static BorderSnapshot capture(WorldBorder border) {
-            BorderSnapshot snapshot = new BorderSnapshot();
-            snapshot.centerX = border.getCenterX();
-            snapshot.centerZ = border.getCenterZ();
-            snapshot.size = border.getSize();
-            snapshot.warningBlocks = border.getWarningBlocks();
-            snapshot.warningTime = border.getWarningTime();
-            snapshot.damagePerBlock = border.getDamagePerBlock();
-            snapshot.damageSafeZone = border.getDamageSafeZone();
-            return snapshot;
-        }
-
-        void apply(WorldBorder border) {
-            border.setCenter(centerX, centerZ);
-            border.setSize(size);
-            border.setWarningBlocks(warningBlocks);
-            border.setWarningTime(warningTime);
-            border.setDamagePerBlock(damagePerBlock);
-            border.setDamageSafeZone(damageSafeZone);
-        }
+    private record MapBounds(int minX, int maxX, int minZ, int maxZ) {
     }
 }

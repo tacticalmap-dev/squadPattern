@@ -14,5 +14,7 @@
   "message.squadpattern.capture_point.chunk_duplicate": "同一区块只能放置一个占领点。",
   "message.squadpattern.capture_point.protected": "占领点受保护，只有 OP 才能破坏。",
   "hud.squadpattern.ammo": "弹药",
-  "hud.squadpattern.oil": "油料"
+  "hud.squadpattern.oil": "油料",
+  "hud.squadpattern.return_to_map": "返回地图",
+  "hud.squadpattern.return_to_map_countdown": "返回地图：%ss"
 }

@@ -18,6 +18,8 @@ public final class ClientHudState {
     public static float pointsB;
     public static int ammoB;
     public static int oilB;
+    // -1: hidden, 0: warning text, >0: countdown seconds.
+    public static int returnToMapSeconds = -1;
     public static final List<MatchHudSyncS2C.PointView> points = new ArrayList<>();
 
     public static void apply(MatchHudSyncS2C pkt) {
@@ -32,6 +34,7 @@ public final class ClientHudState {
         pointsB = pkt.pointsB;
         ammoB = pkt.ammoB;
         oilB = pkt.oilB;
+        returnToMapSeconds = pkt.returnToMapSeconds;
         points.clear();
         points.addAll(pkt.points);
     }
@@ -48,6 +51,7 @@ public final class ClientHudState {
         pointsB = 0F;
         ammoB = 0;
         oilB = 0;
+        returnToMapSeconds = -1;
         points.clear();
     }
 }

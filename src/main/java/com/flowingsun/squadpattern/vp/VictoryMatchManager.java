@@ -191,7 +191,8 @@ public final class VictoryMatchManager {
                     st.mapId,
                     st.teamA.name, st.teamA.color, Math.max(0, st.pointsA), st.ammoA, st.oilA,
                     st.teamB.name, st.teamB.color, Math.max(0, st.pointsB), st.ammoB, st.oilB,
-                    st.points
+                    st.points,
+                    SquadMatchService.INSTANCE.returnToMapSecondsForHud(player)
             ));
         }
     }

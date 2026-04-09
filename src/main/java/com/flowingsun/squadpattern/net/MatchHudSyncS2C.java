@@ -23,6 +23,8 @@ public class MatchHudSyncS2C {
     public final int ammoB;
     public final int oilB;
     public final List<PointView> points;
+    // -1: hidden, 0: show "return to map", >0: show countdown seconds.
+    public final int returnToMapSeconds;
 
     public record PointView(BlockPos pos, float progressSigned, String ownerTeam, boolean contested,
                             boolean capturing) {
@@ -32,7 +34,8 @@ public class MatchHudSyncS2C {
             String mapId,
             String teamA, int colorA, float pointsA, int ammoA, int oilA,
             String teamB, int colorB, float pointsB, int ammoB, int oilB,
-            List<VictoryMatchManager.PointSnapshot> snapshots
+            List<VictoryMatchManager.PointSnapshot> snapshots,
+            int returnToMapSeconds
     ) {
         this.mapId = mapId;
         this.teamA = teamA;
@@ -49,6 +52,7 @@ public class MatchHudSyncS2C {
         for (VictoryMatchManager.PointSnapshot s : snapshots) {
             this.points.add(new PointView(BlockPos.of(s.pos), s.progress, s.ownerTeam, s.contested, s.capturing));
         }
+        this.returnToMapSeconds = returnToMapSeconds;
     }
 
     private MatchHudSyncS2C(
@@ -56,6 +60,7 @@ public class MatchHudSyncS2C {
             String teamA, int colorA, float pointsA, int ammoA, int oilA,
             String teamB, int colorB, float pointsB, int ammoB, int oilB,
             List<PointView> points,
+            int returnToMapSeconds,
             boolean internal
     ) {
         this.mapId = mapId;
@@ -70,6 +75,7 @@ public class MatchHudSyncS2C {
         this.ammoB = ammoB;
         this.oilB = oilB;
         this.points = points;
+        this.returnToMapSeconds = returnToMapSeconds;
     }
 
     public static void encode(MatchHudSyncS2C pkt, FriendlyByteBuf buf) {
@@ -92,6 +98,7 @@ public class MatchHudSyncS2C {
             buf.writeBoolean(p.contested);
             buf.writeBoolean(p.capturing);
         }
+        buf.writeInt(pkt.returnToMapSeconds);
     }
 
     public static MatchHudSyncS2C decode(FriendlyByteBuf buf) {
@@ -116,7 +123,8 @@ public class MatchHudSyncS2C {
             boolean capturing = buf.readBoolean();
             points.add(new PointView(pos, progress, owner.isEmpty() ? null : owner, contested, capturing));
         }
-        return new MatchHudSyncS2C(mapId, teamA, colorA, pointsA, ammoA, oilA, teamB, colorB, pointsB, ammoB, oilB, points, true);
+        int returnToMapSeconds = buf.readInt();
+        return new MatchHudSyncS2C(mapId, teamA, colorA, pointsA, ammoA, oilA, teamB, colorB, pointsB, ammoB, oilB, points, returnToMapSeconds, true);
     }
 
     public static void handle(MatchHudSyncS2C pkt, Supplier<NetworkEvent.Context> ctx) {

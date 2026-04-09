@@ -70,6 +70,13 @@ public class SquadHudOverlay {
         }
 
         g.pose().popPose();
+
+        if (ClientHudState.returnToMapSeconds >= 0) {
+            String text = ClientHudState.returnToMapSeconds > 0
+                    ? I18n.get("hud.squadpattern.return_to_map_countdown", ClientHudState.returnToMapSeconds)
+                    : I18n.get("hud.squadpattern.return_to_map");
+            drawCentered(g, font, text, w * 0.5F, h * 0.5F - 28.0F, 0xFF4444);
+        }
     }
 
     private static void drawCentered(GuiGraphics g, Font font, String text, float x, float y, int color) {

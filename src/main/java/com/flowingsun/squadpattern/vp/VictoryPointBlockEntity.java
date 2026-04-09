@@ -20,8 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VictoryPointBlockEntity extends BlockEntity {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final Set<VictoryPointBlockEntity> ACTIVE_POINTS = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private static final boolean DEBUG_CAPTURE_ACTIONBAR = true;
-    private static final boolean DEBUG_CAPTURE_LOG = true;
 
     private String mapId;
     private String mapName;
@@ -142,7 +140,7 @@ public class VictoryPointBlockEntity extends BlockEntity {
             }
         }
 
-        if (DEBUG_CAPTURE_ACTIONBAR && level.getGameTime() % 20L == 0L && !players.isEmpty()) {
+        if (SquadConfig.DEBUG_MODE.get() && SquadConfig.DEBUG_CAPTURE_ACTIONBAR.get() && level.getGameTime() % 20L == 0L && !players.isEmpty()) {
             String owner = ownerTeam == null ? "neutral" : ownerTeam;
             String dbg = "[VP-DBG] "
                     + pointType.name().toLowerCase(Locale.ROOT)
@@ -158,7 +156,7 @@ public class VictoryPointBlockEntity extends BlockEntity {
             for (ServerPlayer p : players) {
                 p.displayClientMessage(line, true);
             }
-            if (DEBUG_CAPTURE_LOG) {
+            if (SquadConfig.DEBUG_CAPTURE_LOG.get()) {
                 StringBuilder names = new StringBuilder();
                 for (int i = 0; i < players.size(); i++) {
                     if (i > 0) {

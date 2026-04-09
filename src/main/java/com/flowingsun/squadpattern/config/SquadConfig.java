@@ -13,6 +13,9 @@ public final class SquadConfig {
     public static final ForgeConfigSpec.DoubleValue CAPTURE_SECONDS;
     public static final ForgeConfigSpec.DoubleValue DRAIN_PER_MINUTE;
     public static final ForgeConfigSpec.IntValue RESOURCE_CYCLE_SECONDS;
+    public static final ForgeConfigSpec.BooleanValue DEBUG_MODE;
+    public static final ForgeConfigSpec.BooleanValue DEBUG_CAPTURE_ACTIONBAR;
+    public static final ForgeConfigSpec.BooleanValue DEBUG_CAPTURE_LOG;
 
     public static final ForgeConfigSpec.DoubleValue HUD_LEFT_X;
     public static final ForgeConfigSpec.DoubleValue HUD_RIGHT_X;
@@ -34,6 +37,15 @@ public final class SquadConfig {
                 .defineInRange("drainPerMinute", 25.0D, 0.1D, 1000.0D);
         RESOURCE_CYCLE_SECONDS = common.comment("Resource production cycle in seconds")
                 .defineInRange("resourceCycleSeconds", 30, 1, 300);
+
+        common.push("debug");
+        DEBUG_MODE = common.comment("Master switch for all debug output features")
+                .define("debugMode", false);
+        DEBUG_CAPTURE_ACTIONBAR = common.comment("Show capture debug info in action bar once per second")
+                .define("captureActionbar", true);
+        DEBUG_CAPTURE_LOG = common.comment("Write capture debug info to server log")
+                .define("captureLog", true);
+        common.pop();
         COMMON_SPEC = common.build();
 
         ForgeConfigSpec.Builder client = new ForgeConfigSpec.Builder();

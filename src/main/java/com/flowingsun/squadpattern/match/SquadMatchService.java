@@ -59,7 +59,7 @@ public final class SquadMatchService {
     }.getType();
     private static final int TEAM_A_COLOR = 0xFF4444;
     private static final int TEAM_B_COLOR = 0x4488FF;
-    private static final int RETURN_MAP_WARNING_RANGE_BLOCKS = 16;
+    private static final int RETURN_MAP_WARNING_RANGE_BLOCKS = 8;
     private static final int RETURN_MAP_COUNTDOWN_SECONDS = 30;
 
     public static final SquadMatchService INSTANCE = new SquadMatchService();

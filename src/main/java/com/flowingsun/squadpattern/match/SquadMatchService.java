@@ -1,9 +1,6 @@
 package com.flowingsun.squadpattern.match;
 
-import com.flowingsun.squadpattern.integration.FtbTeamsCompat;
-import com.flowingsun.squadpattern.net.MatchHudClearS2C;
-import com.flowingsun.squadpattern.net.SquadNetwork;
-import com.flowingsun.squadpattern.vp.VictoryMatchManager;
+import com.flowingsun.vppoints.api.VpPointsApi;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -64,37 +61,8 @@ public final class SquadMatchService {
     }.getType();
     private static final int TEAM_A_COLOR = 0xFF4444;
     private static final int TEAM_B_COLOR = 0x4488FF;
-    private static final int RETURN_MAP_WARNING_RANGE_BLOCKS = 8;
-    private static final int RETURN_MAP_COUNTDOWN_SECONDS = 30;
 
     public static final SquadMatchService INSTANCE = new SquadMatchService();
-
-    public record ActiveMatchView(
-            String mapId,
-            String mapName,
-            ResourceLocation worldId,
-            String teamA,
-            int colorA,
-            String teamB,
-            int colorB,
-            Set<UUID> teamAPlayers,
-            Set<UUID> teamBPlayers
-    ) {
-    }
-
-    /**
-     * Lightweight per-player match context for HUD and gameplay queries.
-     */
-    public record PlayerMatchContext(
-            String mapId,
-            String mapName,
-            String playerTeam,
-            String teamA,
-            int colorA,
-            String teamB,
-            int colorB
-    ) {
-    }
 
     private final Path storageFile;
     private final Path presetRoot;
@@ -108,8 +76,6 @@ public final class SquadMatchService {
     private final Map<ResourceLocation, String> worldToMapId = new ConcurrentHashMap<>();
     private final Map<UUID, String> disconnectedMatchByPlayer = new ConcurrentHashMap<>();
     private final Map<UUID, PendingTeleport> pendingTeleports = new ConcurrentHashMap<>();
-    // player -> absolute server tick when out-of-bounds countdown expires.
-    private final Map<UUID, Long> outOfBoundsDeadlineTickByPlayer = new ConcurrentHashMap<>();
     // Monotonic counter for runtime world id generation.
     private long runtimeMatchCounter;
     private long maintenanceTick;
@@ -251,10 +217,8 @@ public final class SquadMatchService {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         MinecraftServer server = event.getServer();
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            sendHudClear(player);
-        }
         for (ActiveMatch match : new ArrayList<>(activeMatches.values())) {
+            VpPointsApi.endMatch(match.mapId, server, "server-stopping");
             if (match.runtimeWorld) {
                 destroyRuntimeMatchWorld(server, match.worldId);
             }
@@ -264,7 +228,6 @@ public final class SquadMatchService {
         worldToMapId.clear();
         disconnectedMatchByPlayer.clear();
         pendingTeleports.clear();
-        outOfBoundsDeadlineTickByPlayer.clear();
         maintenanceTick = 0L;
     }
 
@@ -274,7 +237,6 @@ public final class SquadMatchService {
             return;
         }
         processPendingTeleports(event.getServer());
-        tickReturnToMapState(event.getServer());
         maintenanceTick++;
         if (maintenanceTick % 40L != 0L) {
             return;
@@ -287,7 +249,6 @@ public final class SquadMatchService {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        outOfBoundsDeadlineTickByPlayer.remove(player.getUUID());
         PlayerAssignment assignment = playerAssignments.get(player.getUUID());
         if (assignment == null) {
             return;
@@ -302,7 +263,6 @@ public final class SquadMatchService {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
-        sendHudClear(player);
         handleReconnect(player);
     }
 
@@ -310,89 +270,41 @@ public final class SquadMatchService {
         return SharedSuggestionProvider.suggest(mapPresets.keySet(), builder);
     }
 
-    public Optional<ActiveMatchView> activeForLevel(ServerLevel level) {
-        String mapId = worldToMapId.get(level.dimension().location());
-        if (mapId == null) {
-            return Optional.empty();
-        }
-        ActiveMatch match = activeMatches.get(mapId);
-        if (match == null) {
-            return Optional.empty();
-        }
-        return Optional.of(match.view());
+    /**
+     * Host-facing API: starts one match and includes pre-match world preparation + team teleports.
+     */
+    public int startMatchApi(
+            CommandSourceStack source,
+            String mapName,
+            Collection<ServerPlayer> redPlayers,
+            Collection<ServerPlayer> bluePlayers
+    ) {
+        return startMatch(source, mapName, redPlayers, bluePlayers);
     }
 
-    public Optional<PlayerMatchContext> contextFor(ServerPlayer player) {
-        PlayerAssignment assignment = playerAssignments.get(player.getUUID());
-        if (assignment == null) {
-            return Optional.empty();
-        }
-        ActiveMatch match = activeMatches.get(assignment.mapId());
-        if (match == null) {
-            return Optional.empty();
-        }
-        return Optional.of(new PlayerMatchContext(
-                match.mapId,
-                match.mapName,
-                assignment.team(),
-                match.teamA,
-                match.colorA,
-                match.teamB,
-                match.colorB
-        ));
+    /**
+     * Host-facing API: ends active matches by map name; post-match restoration/teleport stays in this mod.
+     */
+    public int endMatchByMapNameApi(CommandSourceStack source, String mapName) {
+        return endMatchByMapName(source, mapName);
     }
 
-    // -1: hidden, 0: warning text only, >0: outside countdown seconds.
-    public int returnToMapSecondsForHud(ServerPlayer player) {
-        if (player == null) {
-            return -1;
-        }
-        PlayerAssignment assignment = playerAssignments.get(player.getUUID());
-        if (assignment == null) {
-            return -1;
-        }
-        ActiveMatch match = activeMatches.get(assignment.mapId());
-        if (match == null || match.bound1 == null || match.bound2 == null) {
-            return -1;
-        }
-        if (!player.serverLevel().dimension().location().equals(match.worldId)) {
-            return -1;
-        }
-
-        MapBounds bounds = resolveBounds(match);
-        double x = player.getX();
-        double z = player.getZ();
-        if (isOutsideBounds(x, z, bounds)) {
-            MinecraftServer server = player.getServer();
-            long now = server == null ? 0L : server.getTickCount();
-            Long deadline = outOfBoundsDeadlineTickByPlayer.get(player.getUUID());
-            if (deadline == null) {
-                // Countdown starts on server tick; HUD shows full duration before first tick writes deadline.
-                return RETURN_MAP_COUNTDOWN_SECONDS;
-            }
-            int seconds = (int) Math.ceil((deadline - now) / 20.0D);
-            return Math.max(1, seconds);
-        }
-        if (isInsideWarningRange(x, z, bounds)) {
-            return 0;
-        }
-        return -1;
+    /**
+     * Host-facing API: applies reconnect workflow (including in-match return teleport when applicable).
+     */
+    public void handleReconnectApi(ServerPlayer player) {
+        handleReconnect(player);
     }
 
-    public String teamForPlayer(String mapId, UUID playerId) {
-        PlayerAssignment assignment = playerAssignments.get(playerId);
-        if (assignment == null || !assignment.mapId().equals(mapId)) {
-            return null;
+    public void onVpPointsMatchFinished(com.flowingsun.vppoints.match.SquadMatchService.MatchFinished result, MinecraftServer server) {
+        if (result == null || server == null) {
+            return;
         }
-        return assignment.team();
-    }
-
-    public void finishByTickets(String mapId, MinecraftServer server) {
-        ActiveMatch match = activeMatches.get(mapId);
+        ActiveMatch match = activeMatches.get(result.mapId());
         if (match == null) {
             return;
         }
-        endMatchInternal(match, server, true, "ticket-zero");
+        endMatchInternal(match, server, true, result.reason());
     }
 
     private int startMatchFromGameCommand(
@@ -777,6 +689,31 @@ public final class SquadMatchService {
         match.bound1 = preset.bound1;
         match.bound2 = preset.bound2;
 
+        int minX = Math.min(match.bound1.x, match.bound2.x);
+        int maxX = Math.max(match.bound1.x, match.bound2.x);
+        int minZ = Math.min(match.bound1.z, match.bound2.z);
+        int maxZ = Math.max(match.bound1.z, match.bound2.z);
+        boolean vpStarted = VpPointsApi.startMatch(new com.flowingsun.vppoints.match.SquadMatchService.StartMatchRequest(
+                server,
+                mapId,
+                mapName,
+                worldId,
+                match.teamA,
+                match.colorA,
+                match.teamB,
+                match.colorB,
+                Set.copyOf(red),
+                Set.copyOf(blue),
+                new com.flowingsun.vppoints.match.SquadMatchService.MatchBounds(minX, maxX, minZ, maxZ)
+        ));
+        if (!vpStarted) {
+            if (match.runtimeWorld) {
+                destroyRuntimeMatchWorld(server, worldId);
+            }
+            source.sendFailure(Component.literal("VP Points start failed for map: " + mapName));
+            return 0;
+        }
+
         activeMatches.put(mapId, match);
         worldToMapId.put(worldId, mapId);
         for (UUID uuid : red) {
@@ -790,9 +727,6 @@ public final class SquadMatchService {
         clearPlayersInventory(server, blue);
         teleportPlayersToSpawn(server, level, preset.redSpawn, red, mapId);
         teleportPlayersToSpawn(server, level, preset.blueSpawn, blue, mapId);
-
-        VictoryMatchManager.INSTANCE.startMatch(match.view());
-        FtbTeamsCompat.INSTANCE.syncMapTeams(mapId, server, "red", red, "blue", blue);
 
         source.sendSuccess(() -> Component.literal("Match started: " + mapName + " [" + mapId + "]"), true);
         return Command.SINGLE_SUCCESS;
@@ -815,22 +749,18 @@ public final class SquadMatchService {
     }
 
     private void endMatchInternal(ActiveMatch match, MinecraftServer server, boolean restorePreset, String reason) {
-        sendHudClearToMatchPlayers(server, match);
         activeMatches.remove(match.mapId);
         worldToMapId.remove(match.worldId);
 
         for (UUID uuid : match.playersA) {
             playerAssignments.remove(uuid);
-            outOfBoundsDeadlineTickByPlayer.remove(uuid);
         }
         for (UUID uuid : match.playersB) {
             playerAssignments.remove(uuid);
-            outOfBoundsDeadlineTickByPlayer.remove(uuid);
         }
         pendingTeleports.keySet().removeIf(uuid -> match.playersA.contains(uuid) || match.playersB.contains(uuid));
 
-        VictoryMatchManager.INSTANCE.resetMap(match.mapId);
-        FtbTeamsCompat.INSTANCE.disbandMapTeams(match.mapId, server);
+        VpPointsApi.endMatch(match.mapId, server, reason);
 
         if (match.runtimeWorld) {
             // Runtime worlds are disposable; always destroy to avoid cross-match pollution.
@@ -840,93 +770,6 @@ public final class SquadMatchService {
         }
 
         LOGGER.info("Match ended: mapId='{}', reason='{}'", match.mapId, reason);
-    }
-
-    private void sendHudClearToMatchPlayers(MinecraftServer server, ActiveMatch match) {
-        if (server == null || match == null) {
-            return;
-        }
-        Set<UUID> all = new HashSet<>();
-        all.addAll(match.playersA);
-        all.addAll(match.playersB);
-        for (UUID uuid : all) {
-            ServerPlayer player = server.getPlayerList().getPlayer(uuid);
-            if (player != null) {
-                sendHudClear(player);
-            }
-        }
-    }
-
-    private void sendHudClear(ServerPlayer player) {
-        SquadNetwork.sendTo(player, new MatchHudClearS2C());
-    }
-
-    private void tickReturnToMapState(MinecraftServer server) {
-        if (activeMatches.isEmpty()) {
-            outOfBoundsDeadlineTickByPlayer.clear();
-            return;
-        }
-
-        long now = server.getTickCount();
-        outOfBoundsDeadlineTickByPlayer.keySet().removeIf(uuid -> {
-            PlayerAssignment assignment = playerAssignments.get(uuid);
-            return assignment == null || !activeMatches.containsKey(assignment.mapId());
-        });
-
-        for (Map.Entry<UUID, PlayerAssignment> entry : playerAssignments.entrySet()) {
-            UUID playerId = entry.getKey();
-            ActiveMatch match = activeMatches.get(entry.getValue().mapId());
-            if (match == null || match.bound1 == null || match.bound2 == null) {
-                outOfBoundsDeadlineTickByPlayer.remove(playerId);
-                continue;
-            }
-
-            ServerPlayer player = server.getPlayerList().getPlayer(playerId);
-            if (player == null || !player.serverLevel().dimension().location().equals(match.worldId)) {
-                outOfBoundsDeadlineTickByPlayer.remove(playerId);
-                continue;
-            }
-
-            MapBounds bounds = resolveBounds(match);
-            if (isOutsideBounds(player.getX(), player.getZ(), bounds)) {
-                // Server-authoritative countdown; client only renders the mirrored state.
-                long deadline = outOfBoundsDeadlineTickByPlayer.computeIfAbsent(
-                        playerId,
-                        ignored -> now + RETURN_MAP_COUNTDOWN_SECONDS * 20L
-                );
-                if (now >= deadline) {
-                    outOfBoundsDeadlineTickByPlayer.remove(playerId);
-                    player.kill();
-                }
-            } else {
-                outOfBoundsDeadlineTickByPlayer.remove(playerId);
-            }
-        }
-    }
-
-    private MapBounds resolveBounds(ActiveMatch match) {
-        int minX = Math.min(match.bound1.x, match.bound2.x);
-        int maxX = Math.max(match.bound1.x, match.bound2.x);
-        int minZ = Math.min(match.bound1.z, match.bound2.z);
-        int maxZ = Math.max(match.bound1.z, match.bound2.z);
-        return new MapBounds(minX, maxX, minZ, maxZ);
-    }
-
-    private boolean isOutsideBounds(double x, double z, MapBounds bounds) {
-        return x < bounds.minX || x > (bounds.maxX + 1.0D)
-                || z < bounds.minZ || z > (bounds.maxZ + 1.0D);
-    }
-
-    private boolean isInsideWarningRange(double x, double z, MapBounds bounds) {
-        if (isOutsideBounds(x, z, bounds)) {
-            return false;
-        }
-        double dLeft = x - bounds.minX;
-        double dRight = (bounds.maxX + 1.0D) - x;
-        double dTop = z - bounds.minZ;
-        double dBottom = (bounds.maxZ + 1.0D) - z;
-        double nearest = Math.min(Math.min(dLeft, dRight), Math.min(dTop, dBottom));
-        return nearest <= RETURN_MAP_WARNING_RANGE_BLOCKS;
     }
 
     private List<ActiveMatch> findActivesByMapName(String mapName) {
@@ -1811,19 +1654,6 @@ public final class SquadMatchService {
         BoundPoint bound1;
         BoundPoint bound2;
 
-        ActiveMatchView view() {
-            return new ActiveMatchView(
-                    mapId,
-                    mapName,
-                    worldId,
-                    teamA,
-                    colorA,
-                    teamB,
-                    colorB,
-                    Set.copyOf(playersA),
-                    Set.copyOf(playersB)
-            );
-        }
     }
 
     private record PlayerAssignment(String mapId, String team) {
@@ -1866,8 +1696,5 @@ public final class SquadMatchService {
         int x;
         int y;
         int z;
-    }
-
-    private record MapBounds(int minX, int maxX, int minZ, int maxZ) {
     }
 }

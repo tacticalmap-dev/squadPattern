@@ -67,14 +67,14 @@ description='''${mod_description}'''
     side="BOTH"
 
 [[dependencies.${mod_id}]]
-    modId="multiworld"
-    mandatory=false
-    versionRange="[1.0,)"
+    modId="vppoints"
+    mandatory=true
+    versionRange="[1.0.0,)"
     ordering="AFTER"
-    side="SERVER"
+    side="BOTH"
 
 [[dependencies.${mod_id}]]
-    modId="ftbteams"
+    modId="multiworld"
     mandatory=false
     versionRange="[1.0,)"
     ordering="AFTER"

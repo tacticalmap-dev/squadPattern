@@ -32,6 +32,7 @@ import net.minecraft.world.level.storage.LevelResource;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -61,6 +62,11 @@ public final class SquadMatchService {
     }.getType();
     private static final int TEAM_A_COLOR = 0xFF4444;
     private static final int TEAM_B_COLOR = 0x4488FF;
+    // Teleport verification tuned to reduce redundant correction teleports (and packet churn) on unstable connections.
+    private static final double TELEPORT_SETTLED_DISTANCE_SQR = 16.0D; // 4 blocks radius.
+    private static final int TELEPORT_VERIFY_MAX_ATTEMPTS = 2;
+    private static final long TELEPORT_VERIFY_INITIAL_DELAY_TICKS = 2L;
+    private static final long TELEPORT_VERIFY_RETRY_DELAY_TICKS = 20L;
 
     public static final SquadMatchService INSTANCE = new SquadMatchService();
 
@@ -215,6 +221,11 @@ public final class SquadMatchService {
     }
 
     @SubscribeEvent
+    public void onServerStarted(ServerStartedEvent event) {
+        recoverStaleRuntimeState(event.getServer());
+    }
+
+    @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         MinecraftServer server = event.getServer();
         for (ActiveMatch match : new ArrayList<>(activeMatches.values())) {
@@ -223,6 +234,47 @@ public final class SquadMatchService {
                 destroyRuntimeMatchWorld(server, match.worldId);
             }
         }
+        activeMatches.clear();
+        playerAssignments.clear();
+        worldToMapId.clear();
+        disconnectedMatchByPlayer.clear();
+        pendingTeleports.clear();
+        maintenanceTick = 0L;
+    }
+
+    private void recoverStaleRuntimeState(MinecraftServer server) {
+        if (server == null) {
+            return;
+        }
+
+        int staleMatches = activeMatches.size();
+        int staleAssignments = playerAssignments.size();
+        int staleWorldMappings = worldToMapId.size();
+        int staleDisconnected = disconnectedMatchByPlayer.size();
+        int stalePendingTeleports = pendingTeleports.size();
+
+        if (staleMatches <= 0
+                && staleAssignments <= 0
+                && staleWorldMappings <= 0
+                && staleDisconnected <= 0
+                && stalePendingTeleports <= 0) {
+            return;
+        }
+
+        LOGGER.warn(
+                "Detected stale runtime match state on server start. Recovering: matches={}, assignments={}, worldMappings={}, disconnected={}, pendingTeleports={}",
+                staleMatches, staleAssignments, staleWorldMappings, staleDisconnected, stalePendingTeleports
+        );
+
+        for (ActiveMatch match : new ArrayList<>(activeMatches.values())) {
+            try {
+                endMatchInternal(match, server, false, "startup-recovery");
+            } catch (Exception ex) {
+                LOGGER.warn("Failed to recover stale match '{}'", match.mapId, ex);
+            }
+        }
+
+        // Safety net for any partial recovery (orphan assignments/map-links with no active match object).
         activeMatches.clear();
         playerAssignments.clear();
         worldToMapId.clear();
@@ -1031,7 +1083,9 @@ public final class SquadMatchService {
         double x = spawn.getX() + 0.5D;
         double y = spawn.getY() + 1D;
         double z = spawn.getZ() + 0.5D;
-        player.teleportTo(overworld, x, y, z, player.getYRot(), player.getXRot());
+        if (!isTeleportSettled(player, overworld.dimension().location(), x, y, z)) {
+            player.teleportTo(overworld, x, y, z, player.getYRot(), player.getXRot());
+        }
         player.setRespawnPosition(overworld.dimension(), spawn, 0.0F, true, false);
         pendingTeleports.remove(player.getUUID());
     }
@@ -1072,7 +1126,11 @@ public final class SquadMatchService {
             }
         }
         player.setRespawnPosition(target.dimension(), new BlockPos((int) spawn.x, (int) spawn.y, (int) spawn.z), spawn.yaw, true, false);
-        scheduleTeleportVerification(server, player, mapId, target, spawn);
+        if (isTeleportSettled(player, target.dimension().location(), spawn.x, spawn.y, spawn.z)) {
+            pendingTeleports.remove(player.getUUID());
+        } else {
+            scheduleTeleportVerification(server, player, mapId, target, spawn);
+        }
         LOGGER.info(
                 "Teleported player '{}' to {} at ({}, {}, {}) [spawnDimension={}]",
                 player.getGameProfile().getName(),
@@ -1096,8 +1154,8 @@ public final class SquadMatchService {
         pending.z = spawn.z;
         pending.yaw = spawn.yaw;
         pending.pitch = spawn.pitch;
-        pending.nextCheckTick = server.getTickCount() + 2L;
-        pending.attemptsRemaining = 3;
+        pending.nextCheckTick = server.getTickCount() + TELEPORT_VERIFY_INITIAL_DELAY_TICKS;
+        pending.attemptsRemaining = TELEPORT_VERIFY_MAX_ATTEMPTS;
         pendingTeleports.put(pending.playerId, pending);
     }
 
@@ -1127,9 +1185,7 @@ public final class SquadMatchService {
                 continue;
             }
 
-            boolean inTargetDimension = player.serverLevel().dimension().location().equals(pending.worldId);
-            boolean nearTarget = inTargetDimension && player.distanceToSqr(pending.x, pending.y, pending.z) <= 4.0D;
-            if (nearTarget) {
+            if (isTeleportSettled(player, pending.worldId, pending.x, pending.y, pending.z)) {
                 iterator.remove();
                 continue;
             }
@@ -1162,11 +1218,15 @@ public final class SquadMatchService {
                 multiworldTeleportPlayer(player, level, fallbackSpawn);
             }
             player.setRespawnPosition(level.dimension(), new BlockPos((int) pending.x, (int) pending.y, (int) pending.z), pending.yaw, true, false);
+            if (isTeleportSettled(player, pending.worldId, pending.x, pending.y, pending.z)) {
+                iterator.remove();
+                continue;
+            }
             pending.attemptsRemaining--;
             if (pending.attemptsRemaining <= 0) {
                 iterator.remove();
             } else {
-                pending.nextCheckTick = now + 10L;
+                pending.nextCheckTick = now + TELEPORT_VERIFY_RETRY_DELAY_TICKS;
             }
             LOGGER.info(
                     "Teleport corrected for '{}' -> {} at ({}, {}, {}) [attemptsLeft={}]",
@@ -1393,6 +1453,16 @@ public final class SquadMatchService {
         if (Files.exists(legacyDir)) {
             multiworldLoadSavedWorld(server, legacyDir, worldId.toString());
         }
+    }
+
+    private boolean isTeleportSettled(ServerPlayer player, ResourceLocation worldId, double x, double y, double z) {
+        if (player == null || worldId == null) {
+            return false;
+        }
+        if (!player.serverLevel().dimension().location().equals(worldId)) {
+            return false;
+        }
+        return player.distanceToSqr(x, y, z) <= TELEPORT_SETTLED_DISTANCE_SQR;
     }
 
     private ResourceLocation createRuntimeMatchWorld(MinecraftServer server, String mapName, ResourceLocation templateWorldId) {

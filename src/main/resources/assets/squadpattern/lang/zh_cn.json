@@ -16,5 +16,10 @@
   "hud.squadpattern.ammo": "弹药",
   "hud.squadpattern.oil": "油料",
   "hud.squadpattern.return_to_map": "返回地图",
-  "hud.squadpattern.return_to_map_countdown": "返回地图：%ss"
+  "hud.squadpattern.return_to_map_countdown": "返回地图：%ss",
+  "hud.squadpattern.point_status.neutral": "中立",
+  "hud.squadpattern.point_status.contested": "争夺中",
+  "hud.squadpattern.point_status.capturing": "%s 占领中（%s%%）",
+  "hud.squadpattern.point_status.reverting": "%s 影响衰减中（%s%%）",
+  "hud.squadpattern.point_status.owned": "%s 已占领"
 }

@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
@@ -40,10 +41,9 @@ public class VictoryPointBER implements BlockEntityRenderer<VictoryPointBlockEnt
         poseStack.scale(-s, -s, s);
 
         Font font = Minecraft.getInstance().font;
-        String owner = be.getOwnerTeam() == null ? "Neutral" : be.getOwnerTeam();
-        String status = be.getDisplayStatus();
-        int color = be.getOwnerTeam() == null ? 0xFFFFFF : (be.getOwnerTeam().equals(be.getTeamA()) ? be.getTeamAColor() : be.getTeamBColor());
-        drawCentered(font, poseStack, buffer, owner + " | " + status, 0, -18, color);
+        String status = buildRealtimeStatusText(be);
+        int color = resolveStatusColor(be);
+        drawCentered(font, poseStack, buffer, status, 0, -18, color);
 
         // progress bar
         float p = be.getSignedProgress();
@@ -74,6 +74,50 @@ public class VictoryPointBER implements BlockEntityRenderer<VictoryPointBlockEnt
             float x = x1 + w * signed;
             rect(vc, m, x, y, x1, y + h, 0xFF000000 | bColor);
         }
+    }
+
+    private static String buildRealtimeStatusText(VictoryPointBlockEntity be) {
+        if (be.isContested()) {
+            return I18n.get("hud.squadpattern.point_status.contested");
+        }
+
+        float progress = be.getSignedProgress();
+        int percent = Math.round(Math.abs(progress) * 100.0F);
+        boolean towardsTeamA = progress >= 0.0F;
+        String teamName = towardsTeamA ? safeTeamName(be.getTeamA()) : safeTeamName(be.getTeamB());
+
+        if (be.isCapturing()) {
+            return I18n.get("hud.squadpattern.point_status.capturing", teamName, percent);
+        }
+
+        if (be.getOwnerTeam() != null) {
+            return I18n.get("hud.squadpattern.point_status.owned", safeTeamName(be.getOwnerTeam()));
+        }
+
+        if (percent > 0) {
+            return I18n.get("hud.squadpattern.point_status.reverting", teamName, percent);
+        }
+        return I18n.get("hud.squadpattern.point_status.neutral");
+    }
+
+    private static int resolveStatusColor(VictoryPointBlockEntity be) {
+        if (be.isContested()) {
+            return 0xFFD966;
+        }
+        if (be.getOwnerTeam() == null) {
+            if (be.getSignedProgress() > 0.0F) {
+                return be.getTeamAColor();
+            }
+            if (be.getSignedProgress() < 0.0F) {
+                return be.getTeamBColor();
+            }
+            return 0xFFFFFF;
+        }
+        return be.getOwnerTeam().equals(be.getTeamA()) ? be.getTeamAColor() : be.getTeamBColor();
+    }
+
+    private static String safeTeamName(String name) {
+        return (name == null || name.isBlank()) ? "?" : name;
     }
 
     private static void rect(VertexConsumer vc, Matrix4f m, float x0, float y0, float x1, float y1, int argb) {

@@ -16,5 +16,10 @@
   "hud.squadpattern.ammo": "Ammo",
   "hud.squadpattern.oil": "Oil",
   "hud.squadpattern.return_to_map": "Return to Map",
-  "hud.squadpattern.return_to_map_countdown": "Return to Map: %ss"
+  "hud.squadpattern.return_to_map_countdown": "Return to Map: %ss",
+  "hud.squadpattern.point_status.neutral": "Neutral",
+  "hud.squadpattern.point_status.contested": "Contested",
+  "hud.squadpattern.point_status.capturing": "Capturing by %s (%s%%)",
+  "hud.squadpattern.point_status.reverting": "Reverting %s influence (%s%%)",
+  "hud.squadpattern.point_status.owned": "Owned by %s"
 }

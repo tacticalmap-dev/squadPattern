@@ -96,8 +96,8 @@ public final class SquadMatchService {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("warpattern")
-                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("map")
+                        .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("delete")
                                 .then(Commands.argument("mapName", StringArgumentType.word()).suggests(this::suggestMapNames)
                                         .executes(ctx -> deleteMap(
@@ -179,10 +179,12 @@ public final class SquadMatchService {
                                         .then(Commands.literal("remake")
                                                 .executes(ctx -> remakePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName")))))))
                 .then(Commands.literal("preset")
+                        .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("remake")
                                 .then(Commands.argument("mapName", StringArgumentType.word()).suggests(this::suggestMapNames)
                                         .executes(ctx -> remakePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName"))))))
                 .then(Commands.literal("match")
+                        .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("start")
                                 .then(Commands.argument("mapName", StringArgumentType.word()).suggests(this::suggestMapNames)
                                         .then(Commands.argument("redPlayers", EntityArgument.players())

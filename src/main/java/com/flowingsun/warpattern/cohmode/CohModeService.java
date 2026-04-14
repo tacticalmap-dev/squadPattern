@@ -56,12 +56,13 @@ public final class CohModeService {
 
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("cohmode")
-                .then(Commands.literal("open")
-                        .executes(ctx -> openSelf(ctx.getSource()))
-                        .then(Commands.argument("player", EntityArgument.player())
-                                .requires(source -> source.hasPermission(2))
-                                .executes(ctx -> openTarget(ctx.getSource(), EntityArgument.getPlayer(ctx, "player")))));
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("warpattern")
+                .then(Commands.literal("cohmode")
+                        .then(Commands.literal("open")
+                                .executes(ctx -> openSelf(ctx.getSource()))
+                                .then(Commands.argument("player", EntityArgument.player())
+                                        .requires(source -> source.hasPermission(2))
+                                        .executes(ctx -> openTarget(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"))))));
         event.getDispatcher().register(root);
     }
 

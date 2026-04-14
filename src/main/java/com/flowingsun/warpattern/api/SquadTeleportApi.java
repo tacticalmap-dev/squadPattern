@@ -1,6 +1,6 @@
-package com.flowingsun.squadpattern.api;
+package com.flowingsun.warpattern.api;
 
-import com.flowingsun.squadpattern.match.SquadMatchService;
+import com.flowingsun.warpattern.match.SquadMatchService;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -9,7 +9,7 @@ import java.util.Collection;
 /**
  * Teleport-flow API exported by the host map mod.
  *
- * This API keeps map/runtime world preparation and all teleport-related flows in squadpattern:
+ * This API keeps map/runtime world preparation and all teleport-related flows in warpattern:
  * - pre-match team teleport
  * - reconnect teleport
  * - post-match world restoration path
@@ -35,3 +35,4 @@ public final class SquadTeleportApi {
         SquadMatchService.INSTANCE.handleReconnectApi(player);
     }
 }
+

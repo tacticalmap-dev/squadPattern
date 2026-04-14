@@ -1,4 +1,4 @@
-package com.flowingsun.squadpattern.match;
+package com.flowingsun.warpattern.match;
 
 import com.flowingsun.vppoints.api.VpPointsApi;
 import com.google.gson.Gson;
@@ -87,7 +87,7 @@ public final class SquadMatchService {
     private long maintenanceTick;
 
     private SquadMatchService() {
-        Path dir = FMLPaths.CONFIGDIR.get().resolve("squadpattern");
+        Path dir = FMLPaths.CONFIGDIR.get().resolve("warpattern");
         this.storageFile = dir.resolve("maps.json");
         this.presetRoot = FMLPaths.GAMEDIR.get().resolve("bakmap");
         loadMaps();
@@ -95,7 +95,7 @@ public final class SquadMatchService {
 
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("squadpattern")
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("warpattern")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("map")
                         .then(Commands.literal("delete")
@@ -166,6 +166,15 @@ public final class SquadMatchService {
                                                                                                 ))))))))))
                                 .then(Commands.literal("save")
                                         .executes(ctx -> savePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName"))))
+                                .then(Commands.literal("recommend")
+                                        .then(Commands.argument("minPlayers", IntegerArgumentType.integer(1))
+                                                .then(Commands.argument("maxPlayers", IntegerArgumentType.integer(1))
+                                                        .executes(ctx -> setRecommendedPlayers(
+                                                                ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "mapName"),
+                                                                IntegerArgumentType.getInteger(ctx, "minPlayers"),
+                                                                IntegerArgumentType.getInteger(ctx, "maxPlayers")
+                                                        )))))
                                 .then(Commands.literal("preset")
                                         .then(Commands.literal("remake")
                                                 .executes(ctx -> remakePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName")))))))
@@ -348,6 +357,40 @@ public final class SquadMatchService {
         handleReconnect(player);
     }
 
+    public record MapMatchmakingView(String mapName, int recommendedMinPlayers, int recommendedMaxPlayers, boolean ready) {
+    }
+
+    public synchronized List<MapMatchmakingView> listMapMatchmakingViews() {
+        List<MapMatchmakingView> out = new ArrayList<>();
+        for (Map.Entry<String, MapPreset> entry : mapPresets.entrySet()) {
+            MapPreset preset = entry.getValue();
+            normalizeMapPreset(preset);
+            boolean ready = preset.saved && validatePresetBeforeUse(preset) == null;
+            out.add(new MapMatchmakingView(entry.getKey(), preset.recommendedMinPlayers, preset.recommendedMaxPlayers, ready));
+        }
+        out.sort(Comparator.comparing(MapMatchmakingView::mapName, String.CASE_INSENSITIVE_ORDER));
+        return out;
+    }
+
+    public synchronized Optional<String> pickRecommendedMapForPlayers(int totalPlayers) {
+        List<MapMatchmakingView> candidates = listMapMatchmakingViews()
+                .stream()
+                .filter(MapMatchmakingView::ready)
+                .filter(v -> totalPlayers >= v.recommendedMinPlayers() && totalPlayers <= v.recommendedMaxPlayers())
+                .toList();
+        if (!candidates.isEmpty()) {
+            return Optional.of(candidates.get(ThreadLocalRandom.current().nextInt(candidates.size())).mapName());
+        }
+        List<MapMatchmakingView> fallbacks = listMapMatchmakingViews()
+                .stream()
+                .filter(MapMatchmakingView::ready)
+                .toList();
+        if (fallbacks.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(fallbacks.get(ThreadLocalRandom.current().nextInt(fallbacks.size())).mapName());
+    }
+
     public void onVpPointsMatchFinished(com.flowingsun.vppoints.match.SquadMatchService.MatchFinished result, MinecraftServer server) {
         if (result == null || server == null) {
             return;
@@ -423,6 +466,7 @@ public final class SquadMatchService {
         ensureWorld(server, worldId);
 
         MapPreset preset = mapPresets.computeIfAbsent(mapName, k -> new MapPreset());
+        normalizeMapPreset(preset);
         ResourceLocation oldWorld = worldIdOf(preset);
         preset.mapName = mapName;
         preset.worldId = worldId.toString();
@@ -448,6 +492,7 @@ public final class SquadMatchService {
         }
 
         MapPreset preset = mapPresets.computeIfAbsent(mapName, k -> new MapPreset());
+        normalizeMapPreset(preset);
         ResourceLocation oldWorld = worldIdOf(preset);
         preset.mapName = mapName;
         preset.worldId = worldId.toString();
@@ -468,7 +513,7 @@ public final class SquadMatchService {
         String mapName = normalizeMapName(rawMapName);
         MapPreset preset = mapPresets.get(mapName);
         if (preset == null) {
-            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /squadpattern map import first."));
+            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /warpattern map import first."));
             return 0;
         }
 
@@ -502,7 +547,7 @@ public final class SquadMatchService {
         String mapName = normalizeMapName(rawMapName);
         MapPreset preset = mapPresets.get(mapName);
         if (preset == null) {
-            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /squadpattern map import first."));
+            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /warpattern map import first."));
             return 0;
         }
 
@@ -534,11 +579,32 @@ public final class SquadMatchService {
         return Command.SINGLE_SUCCESS;
     }
 
+    private int setRecommendedPlayers(CommandSourceStack source, String rawMapName, int minPlayers, int maxPlayers) {
+        String mapName = normalizeMapName(rawMapName);
+        MapPreset preset = mapPresets.get(mapName);
+        if (preset == null) {
+            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /warpattern map import first."));
+            return 0;
+        }
+        if (maxPlayers < minPlayers) {
+            source.sendFailure(Component.literal("maxPlayers must be >= minPlayers."));
+            return 0;
+        }
+        preset.recommendedMinPlayers = minPlayers;
+        preset.recommendedMaxPlayers = maxPlayers;
+        saveMaps();
+
+        source.sendSuccess(() -> Component.literal(
+                "Recommended players for map '" + mapName + "': " + minPlayers + "-" + maxPlayers
+        ), true);
+        return Command.SINGLE_SUCCESS;
+    }
+
     private int savePreset(CommandSourceStack source, String rawMapName) {
         String mapName = normalizeMapName(rawMapName);
         MapPreset preset = mapPresets.get(mapName);
         if (preset == null) {
-            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /squadpattern map import first."));
+            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /warpattern map import first."));
             return 0;
         }
 
@@ -656,7 +722,7 @@ public final class SquadMatchService {
         String mapName = normalizeMapName(rawMapName);
         MapPreset preset = mapPresets.get(mapName);
         if (preset == null) {
-            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /squadpattern map import first."));
+            source.sendFailure(Component.literal("Unknown map: " + mapName + ". Use /warpattern map import first."));
             return 0;
         }
         String validateError = validatePresetBeforeUse(preset);
@@ -665,7 +731,7 @@ public final class SquadMatchService {
             return 0;
         }
         if (!preset.saved) {
-            source.sendFailure(Component.literal("Map is not saved. Run /squadpattern map " + mapName + " save first."));
+            source.sendFailure(Component.literal("Map is not saved. Run /warpattern map " + mapName + " save first."));
             return 0;
         }
 
@@ -709,7 +775,7 @@ public final class SquadMatchService {
 
         Path backupDir = backupDirectory(templateWorldId);
         if (!Files.exists(backupDir)) {
-            source.sendFailure(Component.literal("Map backup missing. Run /squadpattern map " + mapName + " save first."));
+            source.sendFailure(Component.literal("Map backup missing. Run /warpattern map " + mapName + " save first."));
             return 0;
         }
         // Each match runs in an isolated world cloned from the map template backup.
@@ -1384,6 +1450,21 @@ public final class SquadMatchService {
         return cleaned;
     }
 
+    private void normalizeMapPreset(MapPreset preset) {
+        if (preset == null) {
+            return;
+        }
+        if (preset.recommendedMinPlayers <= 0) {
+            preset.recommendedMinPlayers = 2;
+        }
+        if (preset.recommendedMaxPlayers <= 0) {
+            preset.recommendedMaxPlayers = Math.max(16, preset.recommendedMinPlayers);
+        }
+        if (preset.recommendedMaxPlayers < preset.recommendedMinPlayers) {
+            preset.recommendedMaxPlayers = preset.recommendedMinPlayers;
+        }
+    }
+
     private void loadMaps() {
         if (!Files.exists(storageFile)) {
             return;
@@ -1392,6 +1473,7 @@ public final class SquadMatchService {
             Map<String, MapPreset> loaded = GSON.fromJson(reader, MAPS_TYPE);
             if (loaded != null) {
                 mapPresets.clear();
+                loaded.values().forEach(this::normalizeMapPreset);
                 mapPresets.putAll(loaded);
             }
         } catch (Exception ex) {
@@ -1750,6 +1832,8 @@ public final class SquadMatchService {
         BoundPoint bound1;
         BoundPoint bound2;
         boolean saved;
+        int recommendedMinPlayers = 2;
+        int recommendedMaxPlayers = 16;
     }
 
     private static final class SpawnPoint {
@@ -1768,3 +1852,4 @@ public final class SquadMatchService {
         int z;
     }
 }
+

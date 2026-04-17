@@ -53,6 +53,10 @@ public class CohModeScreen extends Screen {
             }
             currentY += extraGap;
         }
+
+        int getBottomY() {
+            return currentY + rowHeight;
+        }
     }
 
     private enum UiStep {
@@ -78,6 +82,7 @@ public class CohModeScreen extends Screen {
     private UiMode selectedMode;
     private UiStep renderedStep;
     private boolean forceCampStep;
+    private int contentBottomY;
 
     public CohModeScreen() {
         super(Component.literal("协作模式流程界面"));
@@ -172,6 +177,7 @@ public class CohModeScreen extends Screen {
     private void buildCampStep(int left, int top) {
         FlowLayout layout = new FlowLayout(left, top, rightPanelLeft() - 8 - left - 12);
         addCampButtons(layout);
+        contentBottomY = layout.getBottomY();
     }
 
     private void buildModeStep(int left, int top) {
@@ -187,6 +193,7 @@ public class CohModeScreen extends Screen {
             selectedMode = UiMode.ROOM;
             rebuildUi();
         }).bounds(b[0], b[1], b[2], b[3]).build());
+        contentBottomY = layout.getBottomY();
     }
 
     private void buildMatchStep(int left, int top) {
@@ -219,6 +226,7 @@ public class CohModeScreen extends Screen {
             payload.addProperty("targetName", name);
             CohModeClientState.sendAction("invite_party", payload);
         }).bounds(b[0], b[1], b[2], b[3]).build());
+        contentBottomY = layout.getBottomY();
     }
 
     private void buildRoomEntryStep(int left, int top) {
@@ -264,6 +272,7 @@ public class CohModeScreen extends Screen {
             payload.addProperty("targetName", name);
             CohModeClientState.sendAction("invite_party", payload);
         }).bounds(b[0], b[1], b[2], b[3]).build());
+        contentBottomY = layout.getBottomY();
     }
 
     private void buildRoomPrepStep(int left, int top) {
@@ -348,6 +357,7 @@ public class CohModeScreen extends Screen {
             payload.addProperty("targetName", name);
             CohModeClientState.sendAction("kick_room_member", payload);
         }).bounds(b[0], b[1], b[2], b[3]).build());
+        contentBottomY = layout.getBottomY();
     }
 
     private void addCampButtons(FlowLayout layout) {
@@ -429,20 +439,22 @@ public class CohModeScreen extends Screen {
             y += 11;
         }
 
+        int textY = contentBottomY + 16;
+
         if (step == UiStep.CAMP) {
-            graphics.drawString(font, "> 第 1 阶段：选择你的阵营。", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            graphics.drawString(font, "> 第 1 阶段：选择你的阵营。", 20, textY, CohUiTheme.TEXT_PRIMARY, false);
         } else if (step == UiStep.MODE) {
-            graphics.drawString(font, "> 第 2 阶段：选择进入方式。", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
-            graphics.drawString(font, "当前阶段不能修改阵营。", 20, 64, CohUiTheme.TEXT_SECONDARY, false);
+            graphics.drawString(font, "> 第 2 阶段：选择进入方式。", 20, textY, CohUiTheme.TEXT_PRIMARY, false);
+            graphics.drawString(font, "当前阶段不能修改阵营。", 20, textY + 12, CohUiTheme.TEXT_SECONDARY, false);
         } else if (step == UiStep.MATCHMAKING) {
-            graphics.drawString(font, "> 第 3 阶段：等待匹配（兵种配置可用 /warpattern cohmode role 打开）。", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            graphics.drawString(font, "> 第 3 阶段：等待匹配（兵种配置可用 /warpattern cohmode role 打开）。", 20, textY, CohUiTheme.TEXT_PRIMARY, false);
             drawMapList(graphics, rightPanelLeft() + 12, 52, s.maps, height - 44);
         } else if (step == UiStep.ROOM_ENTRY) {
-            graphics.drawString(font, "> 第 3 阶段：创建房间或加入已有房间。", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            graphics.drawString(font, "> 第 3 阶段：创建房间或加入已有房间。", 20, textY, CohUiTheme.TEXT_PRIMARY, false);
             drawOpenRooms(graphics, rightPanelLeft() + 12, 52, s.rooms, height - 44);
         } else if (step == UiStep.ROOM_PREP) {
-            graphics.drawString(font, "> 第 4 阶段：房间准备与开局设置。", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
-            drawRoomState(graphics, 20, 72, s);
+            graphics.drawString(font, "> 第 4 阶段：房间准备与开局设置。", 20, textY, CohUiTheme.TEXT_PRIMARY, false);
+            drawRoomState(graphics, 20, textY + 16, s);
             drawMapList(graphics, rightPanelLeft() + 12, 52, s.maps, height - 44);
         }
 

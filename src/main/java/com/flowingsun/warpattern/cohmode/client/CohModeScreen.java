@@ -3,7 +3,6 @@ package com.flowingsun.warpattern.cohmode.client;
 import com.flowingsun.warpattern.cohmode.CohModeModels;
 import com.google.gson.JsonObject;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -115,14 +114,14 @@ public class CohModeScreen extends Screen {
         int left = 12;
         int top = 20;
 
-        addRenderableWidget(Button.builder(Component.literal("Refresh"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Refresh"), b ->
                 CohModeClientState.sendAction("refresh", CohModeClientState.json()))
                 .bounds(left, top, 80, 20).build());
         if (renderedStep != UiStep.CAMP) {
-            addRenderableWidget(Button.builder(Component.literal("Back"), b -> onBack())
+            addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Back"), b -> onBack())
                     .bounds(left + 86, top, 80, 20).build());
         }
-        addRenderableWidget(Button.builder(Component.literal("Close"), b -> onClose())
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Close"), b -> onClose())
                 .bounds(width - 92, top, 80, 20).build());
 
         switch (renderedStep) {
@@ -140,12 +139,12 @@ public class CohModeScreen extends Screen {
 
     private void buildModeStep(int left, int top) {
         int modeY = top;
-        addRenderableWidget(Button.builder(Component.literal("Matchmaking"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Matchmaking"), b -> {
             selectedMode = UiMode.MATCHMAKING;
             rebuildUi();
         }).bounds(left, modeY, 150, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("Room Mode"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Room Mode"), b -> {
             selectedMode = UiMode.ROOM;
             rebuildUi();
         }).bounds(left + 156, modeY, 150, 20).build());
@@ -153,10 +152,10 @@ public class CohModeScreen extends Screen {
 
     private void buildMatchStep(int left, int top) {
         int roleY = top;
-        addRenderableWidget(Button.builder(Component.literal("Ready / Join Queue"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Ready / Join Queue"), b ->
                 CohModeClientState.sendAction("join_random", CohModeClientState.json()))
                 .bounds(left, roleY, 140, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Leave Queue"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Leave Queue"), b ->
                 CohModeClientState.sendAction("leave_random", CohModeClientState.json()))
                 .bounds(left + 146, roleY, 110, 20).build());
 
@@ -164,7 +163,7 @@ public class CohModeScreen extends Screen {
         inviteNameBox.setHint(Component.literal("Player name"));
         addRenderableWidget(inviteNameBox);
 
-        addRenderableWidget(Button.builder(Component.literal("Invite Party"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Invite Party"), b -> {
             String name = inviteNameBox.getValue().trim();
             if (name.isEmpty()) {
                 return;
@@ -176,7 +175,7 @@ public class CohModeScreen extends Screen {
     }
 
     private void buildRoomEntryStep(int left, int top) {
-        addRenderableWidget(Button.builder(Component.literal("Create Room"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Create Room"), b ->
                 CohModeClientState.sendAction("create_room", CohModeClientState.json()))
                 .bounds(left, top, 120, 20).build());
 
@@ -184,7 +183,7 @@ public class CohModeScreen extends Screen {
         roomIdBox.setHint(Component.literal("Room ID"));
         addRenderableWidget(roomIdBox);
 
-        addRenderableWidget(Button.builder(Component.literal("Join Room"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Join Room"), b -> {
             String roomId = roomIdBox.getValue().trim();
             if (roomId.isEmpty()) {
                 return;
@@ -198,7 +197,7 @@ public class CohModeScreen extends Screen {
         inviteNameBox.setHint(Component.literal("Player name"));
         addRenderableWidget(inviteNameBox);
 
-        addRenderableWidget(Button.builder(Component.literal("Invite Party"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Invite Party"), b -> {
             String name = inviteNameBox.getValue().trim();
             if (name.isEmpty()) {
                 return;
@@ -210,23 +209,23 @@ public class CohModeScreen extends Screen {
     }
 
     private void buildRoomPrepStep(int left, int top) {
-        addRenderableWidget(Button.builder(Component.literal("Leave Room"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Leave Room"), b ->
                 CohModeClientState.sendAction("leave_room", CohModeClientState.json()))
                 .bounds(left, top, 110, 20).build());
 
         addCampButtons(left + 116, top);
 
         int roleY = top + 28;
-        addRenderableWidget(Button.builder(Component.literal("Claim Cmdr"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Claim Cmdr"), b ->
                 CohModeClientState.sendAction("claim_commander", CohModeClientState.json()))
                 .bounds(left, roleY, 110, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Release Cmdr"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Release Cmdr"), b ->
                 CohModeClientState.sendAction("release_commander", CohModeClientState.json()))
                 .bounds(left + 116, roleY, 110, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Toggle Ready"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Toggle Ready"), b ->
                 CohModeClientState.sendAction("toggle_ready", CohModeClientState.json()))
                 .bounds(left + 232, roleY, 110, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Start Room"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Start Room"), b ->
                 CohModeClientState.sendAction("start_room", CohModeClientState.json()))
                 .bounds(left + 348, roleY, 110, 20).build());
 
@@ -234,7 +233,7 @@ public class CohModeScreen extends Screen {
         mapNameBox.setHint(Component.literal("Map name"));
         addRenderableWidget(mapNameBox);
 
-        addRenderableWidget(Button.builder(Component.literal("Set Room Map"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Set Room Map"), b -> {
             String map = mapNameBox.getValue().trim();
             if (map.isEmpty()) {
                 return;
@@ -248,7 +247,7 @@ public class CohModeScreen extends Screen {
         inviteNameBox.setHint(Component.literal("Player name"));
         addRenderableWidget(inviteNameBox);
 
-        addRenderableWidget(Button.builder(Component.literal("Invite Room"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Invite Room"), b -> {
             String name = inviteNameBox.getValue().trim();
             if (name.isEmpty()) {
                 return;
@@ -262,7 +261,7 @@ public class CohModeScreen extends Screen {
         kickNameBox.setHint(Component.literal("Kick name"));
         addRenderableWidget(kickNameBox);
 
-        addRenderableWidget(Button.builder(Component.literal("Kick"), b -> {
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Kick"), b -> {
             String name = kickNameBox.getValue().trim();
             if (name.isEmpty()) {
                 return;
@@ -274,9 +273,9 @@ public class CohModeScreen extends Screen {
     }
 
     private void addCampButtons(int left, int top) {
-        addRenderableWidget(Button.builder(Component.literal("Red (Warsaw)"), b -> selectCamp(CohModeModels.Camp.RED))
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Red (Warsaw)"), b -> selectCamp(CohModeModels.Camp.RED))
                 .bounds(left, top, 110, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Blue (NATO)"), b -> selectCamp(CohModeModels.Camp.BLUE))
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Blue (NATO)"), b -> selectCamp(CohModeModels.Camp.BLUE))
                 .bounds(left + 116, top, 110, 20).build());
     }
 
@@ -323,48 +322,55 @@ public class CohModeScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
-        super.render(graphics, mouseX, mouseY, partialTick);
-
         CohModeModels.LobbyStateView s = CohModeClientState.state();
         UiStep step = renderedStep == null ? resolveStep() : renderedStep;
+        renderChrome(graphics, step);
 
-        graphics.drawCenteredString(font, "Cohmode Flow UI", width / 2, 6, 0xFFFFFF);
-        graphics.drawString(font, "Step " + step.level + "/4 - " + step.title, 12, 6, 0xD8D8D8, false);
+        super.render(graphics, mouseX, mouseY, partialTick);
 
-        int x = 12;
-        int y = 170;
-        graphics.drawString(font, "Selected camp: " + (s.selectedCamp == null ? "none" : s.selectedCamp.label), x, y, 0xFFFFFF, false);
+        graphics.drawCenteredString(font, "Cohmode Flow UI", width / 2, 8, CohUiTheme.TEXT_PRIMARY);
+        graphics.drawString(font, "Step " + step.level + "/4 - " + step.title, 20, 8, CohUiTheme.TEXT_SECONDARY, false);
+
+        int x = 20;
+        int y = Math.max(170, height - 86);
+        graphics.drawString(font, "Selected camp: " + (s.selectedCamp == null ? "none" : s.selectedCamp.label), x, y, CohUiTheme.TEXT_PRIMARY, false);
         y += 11;
-        graphics.drawString(font, "Selected role: " + (s.selectedRole == null ? "none" : s.selectedRole.label), x, y, 0xFFFFFF, false);
+        graphics.drawString(font, "Selected role: " + (s.selectedRole == null ? "none" : s.selectedRole.label), x, y, CohUiTheme.TEXT_PRIMARY, false);
         y += 11;
-        graphics.drawString(font, "Queue red/blue: " + s.queue.redQueued + "/" + s.queue.blueQueued + (s.queue.queued ? " (you queued)" : ""), x, y, 0xC8C8C8, false);
+        graphics.drawString(font, "Queue red/blue: " + s.queue.redQueued + "/" + s.queue.blueQueued + (s.queue.queued ? " (you queued)" : ""), x, y, CohUiTheme.TEXT_SECONDARY, false);
         y += 11;
 
         if (s.party != null) {
-            graphics.drawString(font, "Party leader: " + s.party.leaderName + "  members=" + String.join(", ", s.party.members), x, y, 0xB0E0FF, false);
+            graphics.drawString(font, "Party leader: " + s.party.leaderName + "  members=" + String.join(", ", s.party.members), x, y, 0xFFB8D8FF, false);
             y += 11;
         }
 
         if (step == UiStep.CAMP) {
-            graphics.drawString(font, "Step 1: choose your camp to continue.", 12, 64, 0xFFFFFF, false);
+            graphics.drawString(font, "Step 1: choose your camp to continue.", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
         } else if (step == UiStep.MODE) {
-            graphics.drawString(font, "Step 2: choose matchmaking or room mode.", 12, 64, 0xFFFFFF, false);
-            graphics.drawString(font, "Camp can only be changed in Step 1.", 12, 76, 0xC8C8C8, false);
+            graphics.drawString(font, "Step 2: choose matchmaking or room mode.", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            graphics.drawString(font, "Camp can only be changed in Step 1.", 20, 64, CohUiTheme.TEXT_SECONDARY, false);
         } else if (step == UiStep.MATCHMAKING) {
-            graphics.drawString(font, "Step 3: ready up for queue (role selection moved to /warpattern cohmode role).", 12, 64, 0xFFFFFF, false);
-            drawMapList(graphics, width / 2 + 20, 64, s.maps, height - 44);
+            graphics.drawString(font, "Step 3: ready up for queue (role selection moved to /warpattern cohmode role).", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            drawMapList(graphics, rightPanelLeft() + 12, 52, s.maps, height - 44);
         } else if (step == UiStep.ROOM_ENTRY) {
-            graphics.drawString(font, "Step 3: create room or join existing room.", 12, 64, 0xFFFFFF, false);
-            drawOpenRooms(graphics, width / 2 + 20, 64, s.rooms, height - 44);
+            graphics.drawString(font, "Step 3: create room or join existing room.", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            drawOpenRooms(graphics, rightPanelLeft() + 12, 52, s.rooms, height - 44);
         } else if (step == UiStep.ROOM_PREP) {
-            graphics.drawString(font, "Step 4: room prep (camp/commander/ready/map/start).", 12, 64, 0xFFFFFF, false);
-            drawRoomState(graphics, 12, 78, s);
-            drawMapList(graphics, width / 2 + 20, 64, s.maps, height - 44);
+            graphics.drawString(font, "Step 4: room prep (camp/commander/ready/map/start).", 20, 52, CohUiTheme.TEXT_PRIMARY, false);
+            drawRoomState(graphics, 20, 72, s);
+            drawMapList(graphics, rightPanelLeft() + 12, 52, s.maps, height - 44);
         }
 
         if (s.statusText != null && !s.statusText.isEmpty()) {
-            graphics.drawCenteredString(font, s.statusText, width / 2, height - 14, 0xF0F0A0);
+            graphics.fillGradient(12, height - 22, width - 12, height - 6, 0x90202020, 0xD0101010);
+            graphics.drawCenteredString(font, s.statusText, width / 2, height - 17, 0xFFF0F0A0);
         }
+    }
+
+    @Override
+    public void renderBackground(GuiGraphics graphics) {
+        graphics.fillGradient(0, 0, width, height, CohUiTheme.BG_TOP, CohUiTheme.BG_BOTTOM);
     }
 
     private void drawRoomState(GuiGraphics graphics, int left, int top, CohModeModels.LobbyStateView s) {
@@ -373,7 +379,7 @@ public class CohModeScreen extends Screen {
         }
         int y = top;
         graphics.drawString(font, "Room: " + s.currentRoom.roomId + " host=" + s.currentRoom.hostName
-                + " map=" + (s.currentRoom.mapName == null ? "<none>" : s.currentRoom.mapName), left, y, 0xFFD080, false);
+                + " map=" + (s.currentRoom.mapName == null ? "<none>" : s.currentRoom.mapName), left, y, 0xFFFFD080, false);
         y += 11;
         List<CohModeModels.RoomMemberView> members = s.currentRoom.members.stream()
                 .sorted(Comparator.comparing(m -> m.playerName, String.CASE_INSENSITIVE_ORDER))
@@ -384,7 +390,7 @@ public class CohModeScreen extends Screen {
                     + (member.role == null ? "no-role" : member.role.name()) + "]"
                     + (member.ready ? " ready" : " not-ready")
                     + (member.host ? " host" : "");
-            graphics.drawString(font, line, left + 6, y, 0xFFD080, false);
+            graphics.drawString(font, line, left + 6, y, 0xFFFFD080, false);
             y += 10;
             if (y > height - 52) {
                 break;
@@ -394,13 +400,13 @@ public class CohModeScreen extends Screen {
 
     private void drawOpenRooms(GuiGraphics graphics, int left, int top, List<CohModeModels.RoomListItemView> rooms, int bottomLimit) {
         int y = top;
-        graphics.drawString(font, "Open rooms:", left, y, 0xFFFFFF, false);
+        graphics.drawString(font, "Open rooms:", left, y, CohUiTheme.TEXT_PRIMARY, false);
         y += 11;
         for (CohModeModels.RoomListItemView room : rooms) {
             String line = room.roomId + " host=" + room.hostName + " map="
                     + (room.mapName == null ? "<none>" : room.mapName)
                     + " players=" + room.members + "/" + room.maxPlayers;
-            graphics.drawString(font, line, left, y, 0xC8C8C8, false);
+            graphics.drawString(font, line, left, y, CohUiTheme.TEXT_SECONDARY, false);
             y += 10;
             if (y > bottomLimit) {
                 break;
@@ -410,7 +416,7 @@ public class CohModeScreen extends Screen {
 
     private void drawMapList(GuiGraphics graphics, int left, int top, List<CohModeModels.MapView> maps, int bottomLimit) {
         int y = top;
-        graphics.drawString(font, "Ready maps:", left, y, 0xFFFFFF, false);
+        graphics.drawString(font, "Ready maps:", left, y, CohUiTheme.TEXT_PRIMARY, false);
         y += 11;
         for (CohModeModels.MapView map : maps) {
             String line = (map.ready ? "[ok] " : "[x] ")
@@ -421,5 +427,39 @@ public class CohModeScreen extends Screen {
                 break;
             }
         }
+    }
+
+    private int rightPanelLeft() {
+        return Math.max(width / 2 + 8, 292);
+    }
+
+    private void renderChrome(GuiGraphics graphics, UiStep step) {
+        int headerAccentX = 10;
+        int headerY = 8;
+        int headerBottom = 18;
+        graphics.fill(headerAccentX, headerY - 1, headerAccentX + 3, headerBottom + 1, CohUiTheme.HOVER_BORDER);
+        graphics.fill(20, 24, width - 20, 25, CohUiTheme.DIVIDER);
+
+        int panelTop = 40;
+        int panelBottom = height - 28;
+        int leftPanelLeft = 10;
+        int leftPanelRight = rightPanelLeft() - 8;
+        drawPanel(graphics, leftPanelLeft, panelTop, leftPanelRight, panelBottom, true);
+
+        if (step == UiStep.MATCHMAKING || step == UiStep.ROOM_ENTRY || step == UiStep.ROOM_PREP) {
+            drawPanel(graphics, rightPanelLeft(), panelTop, width - 10, panelBottom, false);
+        }
+    }
+
+    private void drawPanel(GuiGraphics graphics, int left, int top, int right, int bottom, boolean highlightedTop) {
+        if (right - left < 8 || bottom - top < 8) {
+            return;
+        }
+        graphics.fillGradient(left, top, right, bottom, CohUiTheme.CARD_BG_TOP, CohUiTheme.CARD_BG_BOTTOM);
+        graphics.fill(left, top, right, top + 1, highlightedTop ? CohUiTheme.HOVER_BORDER_SEMI : CohUiTheme.BORDER_SUBTLE);
+        graphics.fill(left, bottom - 1, right, bottom, CohUiTheme.BORDER_SUBTLE);
+        graphics.fill(left, top, left + 1, bottom, CohUiTheme.BORDER_SUBTLE);
+        graphics.fill(right - 1, top, right, bottom, CohUiTheme.BORDER_SUBTLE);
+        graphics.fillGradient(left + 1, top + 1, right - 1, top + 14, 0x1CFFFFFF, 0x02000000);
     }
 }

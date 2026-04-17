@@ -1,6 +1,9 @@
 package com.flowingsun.warpattern.cohmode;
 
 import com.flowingsun.vppoints.api.VpPointsApi;
+import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackDistributor;
+import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackRepository;
+import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackSelectionRepository;
 import com.flowingsun.warpattern.cohmode.net.CohModeInviteS2C;
 import com.flowingsun.warpattern.cohmode.net.CohModeNetwork;
 import com.flowingsun.warpattern.cohmode.net.CohModeStateS2C;
@@ -68,7 +71,11 @@ public final class CohModeService {
                                 .executes(ctx -> openRoleSelf(ctx.getSource()))
                                 .then(Commands.argument("player", EntityArgument.player())
                                         .requires(source -> source.hasPermission(2))
-                                        .executes(ctx -> openRoleTarget(ctx.getSource(), EntityArgument.getPlayer(ctx, "player"))))));
+                                        .executes(ctx -> openRoleTarget(ctx.getSource(), EntityArgument.getPlayer(ctx, "player")))))
+                        .then(Commands.literal("backpack")
+                                .requires(source -> source.hasPermission(2))
+                                .then(Commands.literal("reload")
+                                        .executes(ctx -> reloadBackpackConfig(ctx.getSource())))));
         event.getDispatcher().register(root);
     }
 
@@ -126,6 +133,7 @@ public final class CohModeService {
             case "claim_commander" -> setCommander(player, true);
             case "release_commander" -> setCommander(player, false);
             case "kick_room_member" -> kickRoomMember(player, payload);
+            case "set_backpack_item" -> setBackpackItem(player, payload);
             default -> {
                 status(player, "Unknown action: " + action, true);
                 push(player, false);
@@ -166,6 +174,17 @@ public final class CohModeService {
         }
         push(target, CohModeStateS2C.OPEN_ROLE);
         source.sendSuccess(() -> Component.literal("Opened cohmode role UI for " + target.getGameProfile().getName()), true);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int reloadBackpackConfig(CommandSourceStack source) {
+        MinecraftServer server = source.getServer();
+        CohRoleBackpackRepository.reload(server);
+        source.sendSuccess(
+                () -> Component.literal("Reloaded cohmode role backpacks: " + CohRoleBackpackRepository.resolvePath(server)
+                        + " ; selections: " + CohRoleBackpackSelectionRepository.resolvePath(server)),
+                true
+        );
         return Command.SINGLE_SUCCESS;
     }
 
@@ -263,6 +282,53 @@ public final class CohModeService {
         }
         profile(player).role = role;
         status(player, "Selected role: " + role.label);
+        push(player, false);
+    }
+
+    private void setBackpackItem(ServerPlayer player, JsonObject payload) {
+        CohModeModels.Role role = parseRole(getString(payload, "role"));
+        if (role == null) {
+            status(player, "Invalid role for backpack custom.", true);
+            push(player, false);
+            return;
+        }
+
+        int slotIndex;
+        try {
+            slotIndex = Integer.parseInt(getString(payload, "slot"));
+        } catch (Exception ignored) {
+            status(player, "Invalid loadout slot.", true);
+            push(player, false);
+            return;
+        }
+        if (slotIndex < 0 || slotIndex >= com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.SLOT_COUNT) {
+            status(player, "Loadout slot out of range.", true);
+            push(player, false);
+            return;
+        }
+
+        String itemId = getString(payload, "item");
+        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig config = CohRoleBackpackRepository.loadOrCreate(player.server);
+        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
+        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.SlotEntry slot =
+                com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.resolveSlot(roleBackpack, slotIndex);
+        if (slot == null || slot.options == null || slot.options.isEmpty()) {
+            status(player, "No configurable options for this slot.", true);
+            push(player, false);
+            return;
+        }
+
+        boolean allowed = slot.options.stream()
+                .filter(option -> option != null && option.item != null)
+                .anyMatch(option -> option.item.equalsIgnoreCase(itemId));
+        if (!allowed) {
+            status(player, "Item is not in slot option list.", true);
+            push(player, false);
+            return;
+        }
+
+        CohRoleBackpackSelectionRepository.setSelectedItem(player.server, player.getUUID(), role, slotIndex, itemId);
+        status(player, "Updated " + role.label + " slot " + (slotIndex + 1) + " to " + itemId + ".");
         push(player, false);
     }
 
@@ -677,6 +743,7 @@ public final class CohModeService {
 
         List<ServerPlayer> red = new ArrayList<>();
         List<ServerPlayer> blue = new ArrayList<>();
+        Map<UUID, CohModeModels.Role> roleByPlayer = new HashMap<>();
         int redCommanders = 0;
         int blueCommanders = 0;
         for (Map.Entry<UUID, RoomMember> entry : room.members.entrySet()) {
@@ -687,6 +754,7 @@ public final class CohModeService {
                 return;
             }
             RoomMember member = entry.getValue();
+            roleByPlayer.put(online.getUUID(), member.role == null ? CohModeModels.Role.RIFLEMAN : member.role);
             if (!member.ready || member.camp == null) {
                 status(host, "All room players must choose camp and be ready.", true);
                 push(host, false);
@@ -726,6 +794,7 @@ public final class CohModeService {
             push(host, false);
             return;
         }
+        CohRoleBackpackDistributor.distribute(host.server, roleByPlayer);
         Set<UUID> members = Set.copyOf(room.members.keySet());
         roomById.remove(room.id);
         members.forEach(roomByPlayer::remove);
@@ -774,6 +843,13 @@ public final class CohModeService {
         normalizeCommander(red);
         normalizeCommander(blue);
         balanceRoles(red, blue);
+        Map<UUID, CohModeModels.Role> roleByPlayer = new HashMap<>();
+        for (QueueEntry entry : red) {
+            roleByPlayer.put(entry.playerId, entry.role == null ? CohModeModels.Role.RIFLEMAN : entry.role);
+        }
+        for (QueueEntry entry : blue) {
+            roleByPlayer.put(entry.playerId, entry.role == null ? CohModeModels.Role.RIFLEMAN : entry.role);
+        }
 
         Optional<String> map = com.flowingsun.warpattern.match.SquadMatchService.INSTANCE.pickRecommendedMapForPlayers(teamSize * 2);
         if (map.isEmpty()) {
@@ -801,6 +877,7 @@ public final class CohModeService {
         if (result <= 0) {
             return;
         }
+        CohRoleBackpackDistributor.distribute(server, roleByPlayer);
 
         red.forEach(entry -> queueByPlayer.remove(entry.playerId));
         blue.forEach(entry -> queueByPlayer.remove(entry.playerId));
@@ -1020,7 +1097,55 @@ public final class CohModeService {
             state.maps.add(mv);
         }
 
+        appendRoleBackpackViews(player, state);
         return state;
+    }
+
+    private void appendRoleBackpackViews(ServerPlayer player, CohModeModels.LobbyStateView state) {
+        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig config = CohRoleBackpackRepository.loadOrCreate(player.server);
+        for (CohModeModels.Role role : CohModeModels.Role.values()) {
+            com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
+            if (roleBackpack == null) {
+                continue;
+            }
+            CohModeModels.RoleBackpackView view = new CohModeModels.RoleBackpackView();
+            view.role = role;
+            view.roleName = roleBackpack.name == null || roleBackpack.name.isBlank() ? role.label : roleBackpack.name;
+            Map<Integer, String> selectedBySlot = CohRoleBackpackSelectionRepository.getRoleSelections(player.server, player.getUUID(), role);
+
+            if (roleBackpack.slots != null) {
+                roleBackpack.slots.stream()
+                        .filter(slot -> slot != null)
+                        .sorted(Comparator.comparingInt(slot -> slot.slotIndex))
+                        .forEach(slot -> {
+                            CohModeModels.BackpackSlotView slotView = new CohModeModels.BackpackSlotView();
+                            slotView.slotIndex = slot.slotIndex;
+                            slotView.slotName = slot.slotName == null || slot.slotName.isBlank()
+                                    ? ("Loadout Slot " + (slot.slotIndex + 1))
+                                    : slot.slotName;
+                            String selected = selectedBySlot.get(slot.slotIndex);
+                            slotView.selectedItemId = selected == null || selected.isBlank() ? slot.defaultItem : selected;
+
+                            if (slot.options != null) {
+                                for (com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.ItemEntry option : slot.options) {
+                                    if (option == null || option.item == null || option.item.isBlank()) {
+                                        continue;
+                                    }
+                                    CohModeModels.BackpackItemOptionView optionView = new CohModeModels.BackpackItemOptionView();
+                                    optionView.itemId = option.item;
+                                    optionView.label = option.label == null || option.label.isBlank() ? option.item : option.label;
+                                    optionView.count = Math.max(1, option.count);
+                                    slotView.options.add(optionView);
+                                }
+                            }
+                            if (slotView.selectedItemId == null || slotView.selectedItemId.isBlank()) {
+                                slotView.selectedItemId = slotView.options.isEmpty() ? "" : slotView.options.get(0).itemId;
+                            }
+                            view.slots.add(slotView);
+                        });
+            }
+            state.roleBackpacks.add(view);
+        }
     }
 
     private static final class PlayerProfile {

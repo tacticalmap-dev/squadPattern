@@ -94,6 +94,25 @@ public final class CohModeModels {
         public int maxPlayers;
     }
 
+    public static final class BackpackItemOptionView {
+        public String itemId;
+        public String label;
+        public int count;
+    }
+
+    public static final class BackpackSlotView {
+        public int slotIndex;
+        public String slotName;
+        public String selectedItemId;
+        public List<BackpackItemOptionView> options = new ArrayList<>();
+    }
+
+    public static final class RoleBackpackView {
+        public Role role;
+        public String roleName;
+        public List<BackpackSlotView> slots = new ArrayList<>();
+    }
+
     public static final class LobbyStateView {
         public String selfName;
         public Camp selectedCamp;
@@ -104,6 +123,7 @@ public final class CohModeModels {
         public List<RoomListItemView> rooms = new ArrayList<>();
         public List<InviteView> invites = new ArrayList<>();
         public List<MapView> maps = new ArrayList<>();
+        public List<RoleBackpackView> roleBackpacks = new ArrayList<>();
         public long serverTimeMillis;
         public String statusText;
     }

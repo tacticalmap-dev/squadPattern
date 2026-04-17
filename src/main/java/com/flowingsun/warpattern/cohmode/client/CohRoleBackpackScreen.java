@@ -42,7 +42,7 @@ public class CohRoleBackpackScreen extends Screen {
     private final List<OptionIconEntry> optionIcons = new ArrayList<>();
 
     public CohRoleBackpackScreen(Screen parent, CohModeModels.Role role) {
-        super(Component.literal("Role Loadout"));
+        super(Component.literal("兵种装备配置"));
         this.parent = parent;
         this.role = role == null ? CohModeModels.Role.RIFLEMAN : role;
     }
@@ -61,16 +61,21 @@ public class CohRoleBackpackScreen extends Screen {
     private void rebuildLocalWidgets() {
         clearWidgets();
         optionIcons.clear();
-        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Refresh"), b ->
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("刷新"), b ->
                 CohModeClientState.sendAction("refresh", CohModeClientState.json()))
                 .bounds(panelLeft + 12, panelTop + 10, 90, 20).build());
-        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("Back"), b -> onClose())
+        addRenderableWidget(CohFlatButton.flatBuilder(Component.literal("返回"), b -> onClose())
                 .bounds(panelRight - 102, panelTop + 10, 90, 20).build());
 
         CohModeModels.RoleBackpackView roleView = roleView();
         if (roleView == null || roleView.slots == null || roleView.slots.isEmpty()) {
             return;
         }
+
+        int panelWidth = panelRight - panelLeft;
+        int buttonX = Math.min(192, (int)(panelWidth * 0.4));
+        int optionButtonWidth = Math.min(300, panelWidth - buttonX - 12);
+        int buttonWidth = Math.min(96, optionButtonWidth);
 
         int y = panelTop + HEADER_Y;
         List<CohModeModels.BackpackSlotView> slots = sortedSlots(roleView);
@@ -79,10 +84,10 @@ public class CohRoleBackpackScreen extends Screen {
                 break;
             }
             final int slotIndex = slot.slotIndex;
-            addRenderableWidget(CohFlatButton.flatBuilder(Component.literal(expandedSlot == slotIndex ? "Collapse" : "Choose"), b -> {
+            addRenderableWidget(CohFlatButton.flatBuilder(Component.literal(expandedSlot == slotIndex ? "收起" : "选择"), b -> {
                 expandedSlot = expandedSlot == slotIndex ? -1 : slotIndex;
                 rebuildLocalWidgets();
-            }).bounds(panelLeft + BUTTON_X, y - 2, BUTTON_WIDTH, 20).build());
+            }).bounds(panelLeft + buttonX, y - 2, buttonWidth, 20).build());
 
             if (expandedSlot == slotIndex && slot.options != null && !slot.options.isEmpty()) {
                 int optionY = y + OPTION_ROW_HEIGHT;
@@ -95,9 +100,9 @@ public class CohRoleBackpackScreen extends Screen {
                         sendSelection(slotIndex, option.itemId);
                         expandedSlot = -1;
                         rebuildLocalWidgets();
-                    }).bounds(panelLeft + BUTTON_X, optionY, OPTION_BUTTON_WIDTH, 20).build());
+                    }).bounds(panelLeft + buttonX, optionY, optionButtonWidth, 20).build());
                     optionIcons.add(new OptionIconEntry(
-                            panelLeft + BUTTON_X + OPTION_ICON_X_OFFSET,
+                            panelLeft + buttonX + OPTION_ICON_X_OFFSET,
                             optionY + OPTION_ICON_Y_OFFSET,
                             itemStackOf(option.itemId, option.count))
                     );
@@ -146,6 +151,15 @@ public class CohRoleBackpackScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics graphics) {
         graphics.fillGradient(0, 0, width, height, CohUiTheme.BG_TOP, CohUiTheme.BG_BOTTOM);
+        
+        // Tactical grid background
+        int gridColor = 0x10FFFFFF;
+        for (int x = 0; x < width; x += 20) {
+            graphics.fill(x, 0, x + 1, height, gridColor);
+        }
+        for (int y = 0; y < height; y += 20) {
+            graphics.fill(0, y, width, y + 1, gridColor);
+        }
     }
 
     @Override
@@ -157,13 +171,17 @@ public class CohRoleBackpackScreen extends Screen {
         CohModeModels.RoleBackpackView roleView = roleView();
         graphics.fill(panelLeft + 12, panelTop + 30, panelRight - 12, panelTop + 31, CohUiTheme.DIVIDER);
         graphics.fill(panelLeft + 8, panelTop + 7, panelLeft + 11, panelTop + 21, CohUiTheme.HOVER_BORDER);
-        graphics.drawCenteredString(font, role.label + " Loadout", width / 2, panelTop + 10, CohUiTheme.TEXT_PRIMARY);
-        graphics.drawString(font, "Each slot supports configurable option lists from role_backpacks.json", panelLeft + 12, panelTop + 36, CohUiTheme.TEXT_SECONDARY, false);
+        graphics.drawCenteredString(font, role.label + "装备配置", width / 2, panelTop + 10, CohUiTheme.TEXT_PRIMARY);
+        graphics.drawString(font, "> 为当前兵种配置出战装备栏位", panelLeft + 12, panelTop + 36, CohUiTheme.TEXT_HIGHLIGHT, false);
 
         if (roleView == null || roleView.slots == null || roleView.slots.isEmpty()) {
-            graphics.drawString(font, "No loadout slot configuration found for this role.", panelLeft + 12, panelTop + 60, 0xFFFF9090, false);
+            graphics.drawString(font, "[!] 当前兵种没有可用的装备配置。", panelLeft + 12, panelTop + 60, 0xFFFF5050, false);
             return;
         }
+
+        int panelWidth = panelRight - panelLeft;
+        int buttonX = Math.min(192, (int)(panelWidth * 0.4));
+        int textRightX = buttonX + Math.min(96, panelWidth - buttonX - 12) + 8;
 
         int y = panelTop + HEADER_Y;
         for (CohModeModels.BackpackSlotView slot : sortedSlots(roleView)) {
@@ -171,8 +189,8 @@ public class CohRoleBackpackScreen extends Screen {
                 break;
             }
             String selectedText = selectedLabel(slot);
-            graphics.drawString(font, "Slot " + (slot.slotIndex + 1) + ": " + slot.slotName, panelLeft + 14, y + 2, CohUiTheme.TEXT_PRIMARY, false);
-            graphics.drawString(font, trimLabel(selectedText, 44), panelLeft + 296, y + 2, CohUiTheme.TEXT_SECONDARY, false);
+            graphics.drawString(font, "槽位 " + (slot.slotIndex + 1) + "：" + slot.slotName, panelLeft + 14, y + 2, CohUiTheme.TEXT_PRIMARY, false);
+            graphics.drawString(font, trimLabel(selectedText, 44), panelLeft + textRightX, y + 2, CohUiTheme.TEXT_SECONDARY, false);
             if (expandedSlot == slot.slotIndex && slot.options != null && !slot.options.isEmpty()) {
                 int optionY = y + OPTION_ROW_HEIGHT + (slot.options.size() * OPTION_ROW_HEIGHT);
                 y = Math.min(optionY + 2, panelBottom - 18);
@@ -183,7 +201,7 @@ public class CohRoleBackpackScreen extends Screen {
 
         CohModeModels.LobbyStateView state = CohModeClientState.state();
         if (state.statusText != null && !state.statusText.isEmpty()) {
-            graphics.drawCenteredString(font, state.statusText, width / 2, panelBottom - 14, 0xFFF0F0A0);
+            graphics.drawCenteredString(font, "系统消息：" + state.statusText, width / 2, panelBottom - 14, CohUiTheme.TEXT_HIGHLIGHT);
         }
 
         for (OptionIconEntry icon : optionIcons) {
@@ -196,7 +214,7 @@ public class CohRoleBackpackScreen extends Screen {
 
     private String selectedLabel(CohModeModels.BackpackSlotView slot) {
         if (slot == null || slot.options == null || slot.options.isEmpty()) {
-            return "<none>";
+            return "<无>";
         }
         String selected = slot.selectedItemId == null ? "" : slot.selectedItemId;
         for (CohModeModels.BackpackItemOptionView option : slot.options) {
@@ -209,7 +227,7 @@ public class CohRoleBackpackScreen extends Screen {
 
     private String optionLabel(CohModeModels.BackpackItemOptionView option) {
         if (option == null) {
-            return "<none>";
+            return "<无>";
         }
         String base = option.label == null || option.label.isBlank() ? option.itemId : option.label;
         return option.count > 1 ? base + " x" + option.count : base;
@@ -248,11 +266,36 @@ public class CohRoleBackpackScreen extends Screen {
 
     private void drawPanel(GuiGraphics graphics, int left, int top, int right, int bottom) {
         graphics.fillGradient(left, top, right, bottom, CohUiTheme.CARD_BG_TOP, CohUiTheme.CARD_BG_BOTTOM);
-        graphics.fill(left, top, right, top + 1, CohUiTheme.HOVER_BORDER_SEMI);
-        graphics.fill(left, bottom - 1, right, bottom, CohUiTheme.BORDER_SUBTLE);
-        graphics.fill(left, top, left + 1, bottom, CohUiTheme.BORDER_SUBTLE);
-        graphics.fill(right - 1, top, right, bottom, CohUiTheme.BORDER_SUBTLE);
+        
+        int borderColor = CohUiTheme.HOVER_BORDER_SEMI;
+        
+        // Draw tactical border with corners
+        graphics.fill(left + 2, top, right - 2, top + 1, borderColor);
+        graphics.fill(left + 2, bottom - 1, right - 2, bottom, CohUiTheme.BORDER_SUBTLE);
+        graphics.fill(left, top + 2, left + 1, bottom - 2, CohUiTheme.BORDER_SUBTLE);
+        graphics.fill(right - 1, top + 2, right, bottom - 2, CohUiTheme.BORDER_SUBTLE);
+        
+        // Corner accents
+        int cornerColor = CohUiTheme.HOVER_BORDER;
+        graphics.fill(left, top, left + 4, top + 2, cornerColor);
+        graphics.fill(left, top, left + 2, top + 4, cornerColor);
+        
+        graphics.fill(right - 4, top, right, top + 2, cornerColor);
+        graphics.fill(right - 2, top, right, top + 4, cornerColor);
+        
+        graphics.fill(left, bottom - 2, left + 4, bottom, cornerColor);
+        graphics.fill(left, bottom - 4, left + 2, bottom, cornerColor);
+        
+        graphics.fill(right - 4, bottom - 2, right, bottom, cornerColor);
+        graphics.fill(right - 2, bottom - 4, right, bottom, cornerColor);
+
+        // Highlight gradient
         graphics.fillGradient(left + 1, top + 1, right - 1, top + 16, 0x1CFFFFFF, 0x02000000);
+        
+        // Scanline effect
+        for (int i = top + 2; i < bottom - 2; i += 4) {
+            graphics.fill(left + 1, i, right - 1, i + 1, 0x10000000);
+        }
     }
 
     private record OptionIconEntry(int x, int y, ItemStack stack) {

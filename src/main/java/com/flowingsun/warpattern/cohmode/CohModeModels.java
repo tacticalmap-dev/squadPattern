@@ -11,8 +11,8 @@ public final class CohModeModels {
     }
 
     public enum Camp {
-        RED("Red (Warsaw)"),
-        BLUE("Blue (NATO)");
+        RED("红队（华约）"),
+        BLUE("蓝队（北约）");
 
         public final String label;
 
@@ -22,11 +22,11 @@ public final class CohModeModels {
     }
 
     public enum Role {
-        COMMANDER("Commander"),
-        RIFLEMAN("Rifleman"),
-        ASSAULT("Assault"),
-        SUPPORT("Support"),
-        SNIPER("Sniper");
+        COMMANDER("指挥官"),
+        RIFLEMAN("步枪手"),
+        ASSAULT("突击手"),
+        SUPPORT("支援兵"),
+        SNIPER("狙击手");
 
         public final String label;
 

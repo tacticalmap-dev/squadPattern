@@ -115,7 +115,7 @@ public final class CohModeService {
             case "join_random" -> joinRandom(player);
             case "leave_random" -> {
                 queueByPlayer.remove(player.getUUID());
-                status(player, "Left random queue.");
+                status(player, "已退出随机匹配队列。");
                 push(player, false);
             }
             case "create_room" -> createRoom(player);
@@ -136,7 +136,7 @@ public final class CohModeService {
             case "kick_room_member" -> kickRoomMember(player, payload);
             case "set_backpack_item" -> setBackpackItem(player, payload);
             default -> {
-                status(player, "Unknown action: " + action, true);
+                status(player, "未知操作：" + action, true);
                 push(player, false);
             }
         }
@@ -260,48 +260,48 @@ public final class CohModeService {
     private void selectCamp(ServerPlayer player, JsonObject payload) {
         CohModeModels.Camp camp = parseCamp(getString(payload, "camp"));
         if (camp == null) {
-            status(player, "Invalid camp.", true);
+            status(player, "无效的阵营。", true);
             push(player, false);
             return;
         }
         profile(player).camp = camp;
-        status(player, "Selected camp: " + camp.label);
+        status(player, "已选择阵营：" + camp.label);
         push(player, false);
     }
 
     private void selectRole(ServerPlayer player, JsonObject payload) {
         CohModeModels.Role role = parseRole(getString(payload, "role"));
         if (role == null) {
-            status(player, "Invalid role.", true);
+            status(player, "无效的兵种。", true);
             push(player, false);
             return;
         }
         if (roomByPlayer.containsKey(player.getUUID()) && role == CohModeModels.Role.COMMANDER) {
-            status(player, "Use Claim Cmdr in room mode.", true);
+            status(player, "在房间模式中请使用“申请指挥官”。", true);
             push(player, false);
             return;
         }
         profile(player).role = role;
-        status(player, "Selected role: " + role.label);
+        status(player, "已选择兵种：" + role.label);
         push(player, false);
     }
 
     private void setBackpackItem(ServerPlayer player, JsonObject payload) {
         CohModeModels.Role role = parseRole(getString(payload, "role"));
         if (role == null) {
-            status(player, "Invalid role for backpack custom.", true);
+            status(player, "装备自定义的兵种无效。", true);
             push(player, false);
             return;
         }
 
         Integer slotIndex = parseBackpackSlotIndex(payload);
         if (slotIndex == null) {
-            status(player, "Invalid loadout slot.", true);
+            status(player, "无效的装备槽位。", true);
             push(player, false);
             return;
         }
         if (slotIndex < 0 || slotIndex >= CohRoleBackpackConfig.SLOT_COUNT) {
-            status(player, "Loadout slot out of range.", true);
+            status(player, "装备槽位超出范围。", true);
             push(player, false);
             return;
         }
@@ -311,19 +311,19 @@ public final class CohModeService {
         CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
         CohRoleBackpackConfig.SlotEntry slot = CohRoleBackpackConfig.resolveSlot(roleBackpack, slotIndex);
         if (slot == null || slot.options == null || slot.options.isEmpty()) {
-            status(player, "No configurable options for this slot.", true);
+            status(player, "该槽位没有可配置项。", true);
             push(player, false);
             return;
         }
 
         if (!isAllowedBackpackItem(slot, itemId)) {
-            status(player, "Item is not in slot option list.", true);
+            status(player, "该物品不在当前槽位可选列表中。", true);
             push(player, false);
             return;
         }
 
         CohRoleBackpackSelectionRepository.setSelectedItem(player.server, player.getUUID(), role, slotIndex, itemId);
-        status(player, "Updated " + role.label + " slot " + (slotIndex + 1) + " to " + itemId + ".");
+        status(player, "已将" + role.label + "的槽位 " + (slotIndex + 1) + " 设置为 " + itemId + "。");
         push(player, false);
     }
 
@@ -347,14 +347,14 @@ public final class CohModeService {
     private void joinRandom(ServerPlayer player) {
         UUID playerId = player.getUUID();
         if (roomByPlayer.containsKey(playerId)) {
-            status(player, "Leave room before queueing.", true);
+            status(player, "请先离开房间再加入匹配。", true);
             push(player, false);
             return;
         }
 
         UUID leader = partyLeaderByMember.getOrDefault(playerId, playerId);
         if (!leader.equals(playerId)) {
-            status(player, "Only party leader can queue.", true);
+            status(player, "只有队长可以加入匹配队列。", true);
             push(player, false);
             return;
         }
@@ -362,14 +362,14 @@ public final class CohModeService {
         Party party = partyByLeader.get(leader);
         List<UUID> members = party == null ? List.of(playerId) : new ArrayList<>(party.members);
         if (members.size() > CohModeConfig.maxPartySize()) {
-            status(player, "Party exceeds max size " + CohModeConfig.maxPartySize(), true);
+            status(player, "队伍人数超过上限 " + CohModeConfig.maxPartySize() + "。", true);
             push(player, false);
             return;
         }
 
         CohModeModels.Camp camp = profile(player).camp;
         if (camp == null) {
-            status(player, "Select camp first.", true);
+            status(player, "请先选择阵营。", true);
             push(player, false);
             return;
         }
@@ -386,7 +386,7 @@ public final class CohModeService {
                 prof.camp = camp;
             }
             if (prof.camp != camp) {
-                status(player, "Party members must use the same camp.", true);
+                status(player, "队伍成员必须选择相同阵营。", true);
                 push(player, false);
                 return;
             }
@@ -414,13 +414,13 @@ public final class CohModeService {
             push(online, false);
         }
 
-        status(player, "Queued " + members.size() + " player(s).");
+        status(player, "已将 " + members.size() + " 名玩家加入匹配队列。");
         push(player, false);
     }
 
     private void createRoom(ServerPlayer player) {
         if (roomByPlayer.containsKey(player.getUUID())) {
-            status(player, "Already in a room.", true);
+            status(player, "你已经在房间中。", true);
             push(player, false);
             return;
         }
@@ -435,24 +435,24 @@ public final class CohModeService {
         room.members.put(player.getUUID(), host);
         roomById.put(room.id, room);
         roomByPlayer.put(player.getUUID(), room.id);
-        status(player, "Room created: " + room.id);
+        status(player, "房间已创建：" + room.id);
         push(player, false);
     }
 
     private void joinRoom(ServerPlayer player, String roomId) {
         if (roomId.isBlank()) {
-            status(player, "Room ID required.", true);
+            status(player, "请输入房间号。", true);
             push(player, false);
             return;
         }
         Room room = roomById.get(roomId);
         if (room == null) {
-            status(player, "Room not found: " + roomId, true);
+            status(player, "未找到房间：" + roomId, true);
             push(player, false);
             return;
         }
         if (room.members.size() >= CohModeConfig.roomMaxPlayers()) {
-            status(player, "Room is full.", true);
+            status(player, "房间已满。", true);
             push(player, false);
             return;
         }
@@ -463,7 +463,7 @@ public final class CohModeService {
         member.role = CohModeModels.Role.RIFLEMAN;
         room.members.put(player.getUUID(), member);
         roomByPlayer.put(player.getUUID(), room.id);
-        status(player, "Joined room " + room.id);
+        status(player, "已加入房间 " + room.id);
         pushRoom(player.server, room);
     }
 
@@ -490,7 +490,7 @@ public final class CohModeService {
     private void toggleReady(ServerPlayer player) {
         Room room = roomById.get(roomByPlayer.get(player.getUUID()));
         if (room == null) {
-            status(player, "Not in room.", true);
+            status(player, "你当前不在房间中。", true);
             push(player, false);
             return;
         }
@@ -498,32 +498,32 @@ public final class CohModeService {
         if (member != null) {
             member.ready = !member.ready;
         }
-        status(player, member != null && member.ready ? "Ready." : "Unready.");
+        status(player, member != null && member.ready ? "已准备。" : "已取消准备。");
         pushRoom(player.server, room);
     }
 
     private void setRoomMap(ServerPlayer player, JsonObject payload) {
         Room room = roomById.get(roomByPlayer.get(player.getUUID()));
         if (room == null || !room.hostId.equals(player.getUUID())) {
-            status(player, "Only room host can set map.", true);
+            status(player, "只有房主可以设置地图。", true);
             push(player, false);
             return;
         }
         String mapName = normalize(getString(payload, "mapName"));
         if (mapName.isBlank()) {
-            status(player, "Map name required.", true);
+            status(player, "请输入地图名。", true);
             push(player, false);
             return;
         }
         boolean ready = com.flowingsun.warpattern.match.SquadMatchService.INSTANCE.listMapMatchmakingViews().stream()
                 .anyMatch(map -> map.ready() && map.mapName().equals(mapName));
         if (!ready) {
-            status(player, "Map is not ready: " + mapName, true);
+            status(player, "地图未就绪：" + mapName, true);
             push(player, false);
             return;
         }
         room.mapName = mapName;
-        status(player, "Room map set: " + mapName);
+        status(player, "房间地图已设置为：" + mapName);
         pushRoom(player.server, room);
     }
 
@@ -531,7 +531,7 @@ public final class CohModeService {
         Room room = roomById.get(roomByPlayer.get(player.getUUID()));
         if (room == null) {
             profile(player).role = claim ? CohModeModels.Role.COMMANDER : CohModeModels.Role.RIFLEMAN;
-            status(player, claim ? "Commander selected." : "Commander released.");
+            status(player, claim ? "已切换为指挥官。" : "已取消指挥官身份。");
             push(player, false);
             return;
         }
@@ -547,33 +547,33 @@ public final class CohModeService {
             return;
         }
         if (self.camp == null) {
-            status(player, "Choose camp before claiming commander.", true);
+            status(player, "申请指挥官前请先选择阵营。", true);
             push(player, false);
             return;
         }
         boolean used = room.members.values().stream().anyMatch(member -> member != self && member.camp == self.camp && member.role == CohModeModels.Role.COMMANDER);
         if (used) {
-            status(player, "Commander slot already taken in your camp.", true);
+            status(player, "你所在阵营的指挥官名额已被占用。", true);
             push(player, false);
             return;
         }
         self.role = CohModeModels.Role.COMMANDER;
         self.ready = false;
-        status(player, "Commander claimed.");
+        status(player, "已申请成为指挥官。");
         pushRoom(player.server, room);
     }
 
     private void kickRoomMember(ServerPlayer host, JsonObject payload) {
         Room room = roomById.get(roomByPlayer.get(host.getUUID()));
         if (room == null || !room.hostId.equals(host.getUUID())) {
-            status(host, "Only room host can kick.", true);
+            status(host, "只有房主可以踢人。", true);
             push(host, false);
             return;
         }
         String name = getString(payload, "targetName");
         UUID target = room.members.keySet().stream().filter(id -> name.equalsIgnoreCase(nameOf(host.server, id))).findFirst().orElse(null);
         if (target == null || target.equals(host.getUUID())) {
-            status(host, "Kick target not found.", true);
+            status(host, "未找到要踢出的目标玩家。", true);
             push(host, false);
             return;
         }
@@ -581,10 +581,10 @@ public final class CohModeService {
         roomByPlayer.remove(target);
         ServerPlayer kicked = host.server.getPlayerList().getPlayer(target);
         if (kicked != null) {
-            status(kicked, "You were removed from room " + room.id + ".", true);
+            status(kicked, "你已被移出房间 " + room.id + "。", true);
             push(kicked, false);
         }
-        status(host, "Player removed.");
+        status(host, "玩家已移出房间。");
         pushRoom(host.server, room);
     }
 
@@ -595,14 +595,14 @@ public final class CohModeService {
                 .findFirst()
                 .orElse(null);
         if (target == null || target.getUUID().equals(from.getUUID())) {
-            status(from, "Valid online target required.", true);
+            status(from, "请选择一个有效的在线玩家。", true);
             push(from, false);
             return;
         }
         if (kind == CohModeModels.InviteKind.ROOM) {
             Room room = roomById.get(roomByPlayer.get(from.getUUID()));
             if (room == null || !room.hostId.equals(from.getUUID())) {
-                status(from, "Only room host can invite to room.", true);
+                status(from, "只有房主可以邀请玩家进入房间。", true);
                 push(from, false);
                 return;
             }
@@ -611,7 +611,7 @@ public final class CohModeService {
         long now = System.currentTimeMillis();
         long last = inviteCooldownAt.getOrDefault(key, 0L);
         if (now - last < CohModeConfig.inviteCooldownMillis()) {
-            status(from, "Invite cooldown active.", true);
+            status(from, "邀请冷却中，请稍后再试。", true);
             push(from, false);
             return;
         }
@@ -625,7 +625,7 @@ public final class CohModeService {
         invite.expireAt = now + CohModeConfig.inviteExpireMillis();
         inviteById.put(invite.id, invite);
         CohModeNetwork.sendTo(target, new CohModeInviteS2C(invite.id, invite.kind, from.getGameProfile().getName(), invite.roomId, invite.expireAt));
-        status(from, "Invite sent.");
+        status(from, "邀请已发送。");
         push(from, false);
         push(target, false);
     }
@@ -634,23 +634,23 @@ public final class CohModeService {
         String inviteId = getString(payload, "inviteId");
         PendingInvite invite = inviteById.get(inviteId);
         if (invite == null || !invite.targetId.equals(player.getUUID())) {
-            status(player, "Invite not found.", true);
+            status(player, "未找到该邀请。", true);
             push(player, false);
             return;
         }
         if (invite.expireAt < System.currentTimeMillis()) {
             inviteById.remove(invite.id);
-            status(player, "Invite expired.", true);
+            status(player, "邀请已过期。", true);
             push(player, false);
             return;
         }
         inviteById.remove(invite.id);
 
         if (!accept) {
-            status(player, "Invite declined.");
+            status(player, "你已拒绝邀请。");
             ServerPlayer inviter = player.server.getPlayerList().getPlayer(invite.fromId);
             if (inviter != null) {
-                status(inviter, "Invite declined by " + player.getGameProfile().getName(), true);
+                status(inviter, player.getGameProfile().getName() + " 拒绝了你的邀请。", true);
                 push(inviter, false);
             }
             push(player, false);
@@ -667,7 +667,7 @@ public final class CohModeService {
     private void acceptPartyInvite(ServerPlayer player, PendingInvite invite) {
         ServerPlayer inviter = player.server.getPlayerList().getPlayer(invite.fromId);
         if (inviter == null) {
-            status(player, "Inviter is offline.", true);
+            status(player, "邀请者当前不在线。", true);
             push(player, false);
             return;
         }
@@ -680,7 +680,7 @@ public final class CohModeService {
             return created;
         });
         if (party.members.size() >= CohModeConfig.maxPartySize()) {
-            status(player, "Party is full.", true);
+            status(player, "队伍已满。", true);
             push(player, false);
             return;
         }
@@ -690,7 +690,7 @@ public final class CohModeService {
 
         party.members.add(player.getUUID());
         partyLeaderByMember.put(player.getUUID(), party.leaderId);
-        status(player, "Joined party.");
+        status(player, "已加入队伍。");
         pushParty(player.server, party);
     }
 
@@ -743,12 +743,12 @@ public final class CohModeService {
     private void startRoom(ServerPlayer host) {
         Room room = roomById.get(roomByPlayer.get(host.getUUID()));
         if (room == null || !room.hostId.equals(host.getUUID())) {
-            status(host, "Only host can start room.", true);
+            status(host, "只有房主可以开始房间。", true);
             push(host, false);
             return;
         }
         if (room.mapName == null || room.mapName.isBlank()) {
-            status(host, "Room map must be set before start.", true);
+            status(host, "开始前必须先设置房间地图。", true);
             push(host, false);
             return;
         }
@@ -761,14 +761,14 @@ public final class CohModeService {
         for (Map.Entry<UUID, RoomMember> entry : room.members.entrySet()) {
             ServerPlayer online = host.server.getPlayerList().getPlayer(entry.getKey());
             if (online == null) {
-                status(host, "All room players must be online.", true);
+                status(host, "房间内所有玩家都必须在线。", true);
                 push(host, false);
                 return;
             }
             RoomMember member = entry.getValue();
             roleByPlayer.put(online.getUUID(), member.role == null ? CohModeModels.Role.RIFLEMAN : member.role);
             if (!member.ready || member.camp == null) {
-                status(host, "All room players must choose camp and be ready.", true);
+                status(host, "房间内所有玩家都必须选择阵营并准备。", true);
                 push(host, false);
                 return;
             }
@@ -785,12 +785,12 @@ public final class CohModeService {
             }
         }
         if (red.isEmpty() || blue.isEmpty()) {
-            status(host, "Both camps need players.", true);
+            status(host, "双方阵营都必须有玩家。", true);
             push(host, false);
             return;
         }
         if (redCommanders > 1 || blueCommanders > 1) {
-            status(host, "Each camp can have only one commander.", true);
+            status(host, "每个阵营只能有一名指挥官。", true);
             push(host, false);
             return;
         }
@@ -802,7 +802,7 @@ public final class CohModeService {
                 blue
         );
         if (result <= 0) {
-            status(host, "Start room match failed.", true);
+            status(host, "房间对局启动失败。", true);
             push(host, false);
             return;
         }
@@ -814,7 +814,7 @@ public final class CohModeService {
         for (UUID memberId : members) {
             ServerPlayer online = host.server.getPlayerList().getPlayer(memberId);
             if (online != null) {
-                status(online, "Room match started on map " + room.mapName + ".");
+                status(online, "房间对局已开始，地图：" + room.mapName + "。");
                 push(online, false);
             }
         }
@@ -894,11 +894,11 @@ public final class CohModeService {
         red.forEach(entry -> queueByPlayer.remove(entry.playerId));
         blue.forEach(entry -> queueByPlayer.remove(entry.playerId));
         for (ServerPlayer p : redPlayers) {
-            status(p, "Random match started on map " + map.get() + ".");
+            status(p, "随机匹配已开始，地图：" + map.get() + "。");
             push(p, false);
         }
         for (ServerPlayer p : bluePlayers) {
-            status(p, "Random match started on map " + map.get() + ".");
+            status(p, "随机匹配已开始，地图：" + map.get() + "。");
             push(p, false);
         }
     }

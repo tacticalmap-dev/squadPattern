@@ -2,9 +2,9 @@ package com.flowingsun.warpattern.cohmode.backpack;
 
 import com.flowingsun.warpattern.cohmode.CohModeModels;
 import com.mojang.logging.LogUtils;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
@@ -43,6 +43,7 @@ public final class CohRoleBackpackDistributor {
         if (player == null || config == null) {
             return;
         }
+        CommandSourceStack source = createGiveSource(server, player);
         CohRoleBackpackConfig.RoleBackpack backpack = config.resolveRoleBackpack(role);
         if (backpack == null) {
             return;
@@ -57,7 +58,7 @@ public final class CohRoleBackpackDistributor {
                         String selectedItem = selections.get(slot.slotIndex);
                         CohRoleBackpackConfig.ItemEntry resolved = resolveSlotSelection(slot, selectedItem);
                         if (resolved != null) {
-                            applyItemByGive(server, player, resolved);
+                            applyItemByGive(server, player, source, resolved);
                         }
                     });
             return;
@@ -68,7 +69,7 @@ public final class CohRoleBackpackDistributor {
             return;
         }
         for (CohRoleBackpackConfig.ItemEntry itemEntry : backpack.items) {
-            applyItemByGive(server, player, itemEntry);
+            applyItemByGive(server, player, source, itemEntry);
         }
     }
 
@@ -76,25 +77,39 @@ public final class CohRoleBackpackDistributor {
         if (slot == null || slot.options == null || slot.options.isEmpty()) {
             return null;
         }
-        if (selectedItem != null && !selectedItem.isBlank()) {
-            for (CohRoleBackpackConfig.ItemEntry option : slot.options) {
-                if (option != null && option.item != null && option.item.equalsIgnoreCase(selectedItem)) {
-                    return option;
-                }
-            }
+        CohRoleBackpackConfig.ItemEntry explicit = findOption(slot, selectedItem);
+        if (explicit != null) {
+            return explicit;
         }
-        if (slot.defaultItem != null && !slot.defaultItem.isBlank()) {
-            for (CohRoleBackpackConfig.ItemEntry option : slot.options) {
-                if (option != null && option.item != null && option.item.equalsIgnoreCase(slot.defaultItem)) {
-                    return option;
-                }
-            }
+        CohRoleBackpackConfig.ItemEntry fallback = findOption(slot, slot.defaultItem);
+        if (fallback != null) {
+            return fallback;
         }
         return slot.options.get(0);
     }
 
-    private static void applyItemByGive(MinecraftServer server, ServerPlayer player, CohRoleBackpackConfig.ItemEntry itemEntry) {
-        if (server == null || player == null || itemEntry == null || itemEntry.item == null || itemEntry.item.isBlank()) {
+    private static CohRoleBackpackConfig.ItemEntry findOption(CohRoleBackpackConfig.SlotEntry slot, String itemId) {
+        if (slot == null || slot.options == null || slot.options.isEmpty() || itemId == null || itemId.isBlank()) {
+            return null;
+        }
+        for (CohRoleBackpackConfig.ItemEntry option : slot.options) {
+            if (option != null && option.item != null && option.item.equalsIgnoreCase(itemId)) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    private static CommandSourceStack createGiveSource(MinecraftServer server, ServerPlayer player) {
+        return server.createCommandSourceStack()
+                .withSuppressedOutput()
+                .withPermission(4)
+                .withEntity(player)
+                .withPosition(player.position());
+    }
+
+    private static void applyItemByGive(MinecraftServer server, ServerPlayer player, CommandSourceStack source, CohRoleBackpackConfig.ItemEntry itemEntry) {
+        if (server == null || player == null || source == null || itemEntry == null || itemEntry.item == null || itemEntry.item.isBlank()) {
             return;
         }
         ResourceLocation itemId = ResourceLocation.tryParse(itemEntry.item);
@@ -111,12 +126,6 @@ public final class CohRoleBackpackDistributor {
         String nbtPart = itemEntry.nbt == null || itemEntry.nbt.isBlank() ? "" : itemEntry.nbt.trim();
         String itemExpr = itemId + nbtPart;
         int count = Math.max(1, itemEntry.count);
-
-        CommandSourceStack source = server.createCommandSourceStack()
-                .withSuppressedOutput()
-                .withPermission(4)
-                .withEntity(player)
-                .withPosition(player.position());
         String command = "give @s " + itemExpr + " " + count;
         int result = server.getCommands().performPrefixedCommand(source, command);
         if (result <= 0) {

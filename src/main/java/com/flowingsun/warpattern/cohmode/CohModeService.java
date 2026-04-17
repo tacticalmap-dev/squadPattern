@@ -1,6 +1,7 @@
 package com.flowingsun.warpattern.cohmode;
 
 import com.flowingsun.vppoints.api.VpPointsApi;
+import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig;
 import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackDistributor;
 import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackRepository;
 import com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackSelectionRepository;
@@ -293,35 +294,29 @@ public final class CohModeService {
             return;
         }
 
-        int slotIndex;
-        try {
-            slotIndex = Integer.parseInt(getString(payload, "slot"));
-        } catch (Exception ignored) {
+        Integer slotIndex = parseBackpackSlotIndex(payload);
+        if (slotIndex == null) {
             status(player, "Invalid loadout slot.", true);
             push(player, false);
             return;
         }
-        if (slotIndex < 0 || slotIndex >= com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.SLOT_COUNT) {
+        if (slotIndex < 0 || slotIndex >= CohRoleBackpackConfig.SLOT_COUNT) {
             status(player, "Loadout slot out of range.", true);
             push(player, false);
             return;
         }
 
         String itemId = getString(payload, "item");
-        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig config = CohRoleBackpackRepository.loadOrCreate(player.server);
-        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
-        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.SlotEntry slot =
-                com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.resolveSlot(roleBackpack, slotIndex);
+        CohRoleBackpackConfig config = CohRoleBackpackRepository.loadOrCreate(player.server);
+        CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
+        CohRoleBackpackConfig.SlotEntry slot = CohRoleBackpackConfig.resolveSlot(roleBackpack, slotIndex);
         if (slot == null || slot.options == null || slot.options.isEmpty()) {
             status(player, "No configurable options for this slot.", true);
             push(player, false);
             return;
         }
 
-        boolean allowed = slot.options.stream()
-                .filter(option -> option != null && option.item != null)
-                .anyMatch(option -> option.item.equalsIgnoreCase(itemId));
-        if (!allowed) {
+        if (!isAllowedBackpackItem(slot, itemId)) {
             status(player, "Item is not in slot option list.", true);
             push(player, false);
             return;
@@ -330,6 +325,23 @@ public final class CohModeService {
         CohRoleBackpackSelectionRepository.setSelectedItem(player.server, player.getUUID(), role, slotIndex, itemId);
         status(player, "Updated " + role.label + " slot " + (slotIndex + 1) + " to " + itemId + ".");
         push(player, false);
+    }
+
+    private Integer parseBackpackSlotIndex(JsonObject payload) {
+        try {
+            return Integer.parseInt(getString(payload, "slot"));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean isAllowedBackpackItem(CohRoleBackpackConfig.SlotEntry slot, String itemId) {
+        if (slot == null || slot.options == null || slot.options.isEmpty() || itemId == null || itemId.isBlank()) {
+            return false;
+        }
+        return slot.options.stream()
+                .filter(option -> option != null && option.item != null)
+                .anyMatch(option -> option.item.equalsIgnoreCase(itemId));
     }
 
     private void joinRandom(ServerPlayer player) {
@@ -1102,50 +1114,86 @@ public final class CohModeService {
     }
 
     private void appendRoleBackpackViews(ServerPlayer player, CohModeModels.LobbyStateView state) {
-        com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig config = CohRoleBackpackRepository.loadOrCreate(player.server);
+        CohRoleBackpackConfig config = CohRoleBackpackRepository.loadOrCreate(player.server);
         for (CohModeModels.Role role : CohModeModels.Role.values()) {
-            com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
-            if (roleBackpack == null) {
-                continue;
-            }
-            CohModeModels.RoleBackpackView view = new CohModeModels.RoleBackpackView();
-            view.role = role;
-            view.roleName = roleBackpack.name == null || roleBackpack.name.isBlank() ? role.label : roleBackpack.name;
             Map<Integer, String> selectedBySlot = CohRoleBackpackSelectionRepository.getRoleSelections(player.server, player.getUUID(), role);
-
-            if (roleBackpack.slots != null) {
-                roleBackpack.slots.stream()
-                        .filter(slot -> slot != null)
-                        .sorted(Comparator.comparingInt(slot -> slot.slotIndex))
-                        .forEach(slot -> {
-                            CohModeModels.BackpackSlotView slotView = new CohModeModels.BackpackSlotView();
-                            slotView.slotIndex = slot.slotIndex;
-                            slotView.slotName = slot.slotName == null || slot.slotName.isBlank()
-                                    ? ("Loadout Slot " + (slot.slotIndex + 1))
-                                    : slot.slotName;
-                            String selected = selectedBySlot.get(slot.slotIndex);
-                            slotView.selectedItemId = selected == null || selected.isBlank() ? slot.defaultItem : selected;
-
-                            if (slot.options != null) {
-                                for (com.flowingsun.warpattern.cohmode.backpack.CohRoleBackpackConfig.ItemEntry option : slot.options) {
-                                    if (option == null || option.item == null || option.item.isBlank()) {
-                                        continue;
-                                    }
-                                    CohModeModels.BackpackItemOptionView optionView = new CohModeModels.BackpackItemOptionView();
-                                    optionView.itemId = option.item;
-                                    optionView.label = option.label == null || option.label.isBlank() ? option.item : option.label;
-                                    optionView.count = Math.max(1, option.count);
-                                    slotView.options.add(optionView);
-                                }
-                            }
-                            if (slotView.selectedItemId == null || slotView.selectedItemId.isBlank()) {
-                                slotView.selectedItemId = slotView.options.isEmpty() ? "" : slotView.options.get(0).itemId;
-                            }
-                            view.slots.add(slotView);
-                        });
+            CohModeModels.RoleBackpackView view = buildRoleBackpackView(config, role, selectedBySlot);
+            if (view != null) {
+                state.roleBackpacks.add(view);
             }
-            state.roleBackpacks.add(view);
         }
+    }
+
+    private CohModeModels.RoleBackpackView buildRoleBackpackView(
+            CohRoleBackpackConfig config,
+            CohModeModels.Role role,
+            Map<Integer, String> selectedBySlot
+    ) {
+        CohRoleBackpackConfig.RoleBackpack roleBackpack = config.resolveRoleBackpack(role);
+        if (roleBackpack == null) {
+            return null;
+        }
+        CohModeModels.RoleBackpackView view = new CohModeModels.RoleBackpackView();
+        view.role = role;
+        view.roleName = roleBackpack.name == null || roleBackpack.name.isBlank() ? role.label : roleBackpack.name;
+        if (roleBackpack.slots == null) {
+            return view;
+        }
+
+        roleBackpack.slots.stream()
+                .filter(slot -> slot != null)
+                .sorted(Comparator.comparingInt(slot -> slot.slotIndex))
+                .map(slot -> buildBackpackSlotView(slot, selectedBySlot))
+                .filter(Objects::nonNull)
+                .forEach(view.slots::add);
+        return view;
+    }
+
+    private CohModeModels.BackpackSlotView buildBackpackSlotView(
+            CohRoleBackpackConfig.SlotEntry slot,
+            Map<Integer, String> selectedBySlot
+    ) {
+        if (slot == null) {
+            return null;
+        }
+        CohModeModels.BackpackSlotView slotView = new CohModeModels.BackpackSlotView();
+        slotView.slotIndex = slot.slotIndex;
+        slotView.slotName = slot.slotName == null || slot.slotName.isBlank()
+                ? ("Loadout Slot " + (slot.slotIndex + 1))
+                : slot.slotName;
+        slotView.selectedItemId = resolveSelectedBackpackItem(slot, selectedBySlot);
+
+        if (slot.options != null) {
+            for (CohRoleBackpackConfig.ItemEntry option : slot.options) {
+                CohModeModels.BackpackItemOptionView optionView = buildBackpackOptionView(option);
+                if (optionView != null) {
+                    slotView.options.add(optionView);
+                }
+            }
+        }
+        if ((slotView.selectedItemId == null || slotView.selectedItemId.isBlank()) && !slotView.options.isEmpty()) {
+            slotView.selectedItemId = slotView.options.get(0).itemId;
+        }
+        return slotView;
+    }
+
+    private String resolveSelectedBackpackItem(CohRoleBackpackConfig.SlotEntry slot, Map<Integer, String> selectedBySlot) {
+        if (slot == null) {
+            return "";
+        }
+        String selected = selectedBySlot == null ? null : selectedBySlot.get(slot.slotIndex);
+        return (selected == null || selected.isBlank()) ? slot.defaultItem : selected;
+    }
+
+    private CohModeModels.BackpackItemOptionView buildBackpackOptionView(CohRoleBackpackConfig.ItemEntry option) {
+        if (option == null || option.item == null || option.item.isBlank()) {
+            return null;
+        }
+        CohModeModels.BackpackItemOptionView optionView = new CohModeModels.BackpackItemOptionView();
+        optionView.itemId = option.item;
+        optionView.label = option.label == null || option.label.isBlank() ? option.item : option.label;
+        optionView.count = Math.max(1, option.count);
+        return optionView;
     }
 
     private static final class PlayerProfile {

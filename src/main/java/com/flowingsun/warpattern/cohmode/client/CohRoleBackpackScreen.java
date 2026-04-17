@@ -19,6 +19,18 @@ import java.util.List;
  * Role loadout customization screen: 5 slots with per-slot option dropdowns.
  */
 public class CohRoleBackpackScreen extends Screen {
+    private static final int PANEL_MAX_WIDTH = 520;
+    private static final int PANEL_MAX_HEIGHT = 300;
+    private static final int PANEL_MARGIN = 24;
+    private static final int HEADER_Y = 52;
+    private static final int ROW_HEIGHT = 28;
+    private static final int OPTION_ROW_HEIGHT = 22;
+    private static final int BUTTON_X = 192;
+    private static final int BUTTON_WIDTH = 96;
+    private static final int OPTION_BUTTON_WIDTH = 300;
+    private static final int OPTION_ICON_X_OFFSET = 4;
+    private static final int OPTION_ICON_Y_OFFSET = 2;
+
     private final Screen parent;
     private final CohModeModels.Role role;
 
@@ -37,8 +49,8 @@ public class CohRoleBackpackScreen extends Screen {
 
     @Override
     protected void init() {
-        int panelWidth = Math.min(520, width - 24);
-        int panelHeight = Math.min(300, height - 28);
+        int panelWidth = Math.min(PANEL_MAX_WIDTH, width - PANEL_MARGIN);
+        int panelHeight = Math.min(PANEL_MAX_HEIGHT, height - 28);
         panelLeft = (width - panelWidth) / 2;
         panelTop = (height - panelHeight) / 2;
         panelRight = panelLeft + panelWidth;
@@ -60,10 +72,8 @@ public class CohRoleBackpackScreen extends Screen {
             return;
         }
 
-        int y = panelTop + 52;
-        List<CohModeModels.BackpackSlotView> slots = roleView.slots.stream()
-                .sorted(Comparator.comparingInt(slot -> slot.slotIndex))
-                .toList();
+        int y = panelTop + HEADER_Y;
+        List<CohModeModels.BackpackSlotView> slots = sortedSlots(roleView);
         for (CohModeModels.BackpackSlotView slot : slots) {
             if (y + 20 > panelBottom - 20) {
                 break;
@@ -72,10 +82,10 @@ public class CohRoleBackpackScreen extends Screen {
             addRenderableWidget(CohFlatButton.flatBuilder(Component.literal(expandedSlot == slotIndex ? "Collapse" : "Choose"), b -> {
                 expandedSlot = expandedSlot == slotIndex ? -1 : slotIndex;
                 rebuildLocalWidgets();
-            }).bounds(panelLeft + 192, y - 2, 96, 20).build());
+            }).bounds(panelLeft + BUTTON_X, y - 2, BUTTON_WIDTH, 20).build());
 
             if (expandedSlot == slotIndex && slot.options != null && !slot.options.isEmpty()) {
-                int optionY = y + 22;
+                int optionY = y + OPTION_ROW_HEIGHT;
                 for (CohModeModels.BackpackItemOptionView option : slot.options) {
                     if (optionY + 20 > panelBottom - 14) {
                         break;
@@ -85,13 +95,17 @@ public class CohRoleBackpackScreen extends Screen {
                         sendSelection(slotIndex, option.itemId);
                         expandedSlot = -1;
                         rebuildLocalWidgets();
-                    }).bounds(panelLeft + 192, optionY, 300, 20).build());
-                    optionIcons.add(new OptionIconEntry(panelLeft + 196, optionY + 2, itemStackOf(option.itemId, option.count)));
-                    optionY += 22;
+                    }).bounds(panelLeft + BUTTON_X, optionY, OPTION_BUTTON_WIDTH, 20).build());
+                    optionIcons.add(new OptionIconEntry(
+                            panelLeft + BUTTON_X + OPTION_ICON_X_OFFSET,
+                            optionY + OPTION_ICON_Y_OFFSET,
+                            itemStackOf(option.itemId, option.count))
+                    );
+                    optionY += OPTION_ROW_HEIGHT;
                 }
                 y = optionY + 2;
             } else {
-                y += 28;
+                y += ROW_HEIGHT;
             }
         }
     }
@@ -151,8 +165,8 @@ public class CohRoleBackpackScreen extends Screen {
             return;
         }
 
-        int y = panelTop + 52;
-        for (CohModeModels.BackpackSlotView slot : roleView.slots.stream().sorted(Comparator.comparingInt(v -> v.slotIndex)).toList()) {
+        int y = panelTop + HEADER_Y;
+        for (CohModeModels.BackpackSlotView slot : sortedSlots(roleView)) {
             if (y + 18 > panelBottom - 20) {
                 break;
             }
@@ -160,10 +174,10 @@ public class CohRoleBackpackScreen extends Screen {
             graphics.drawString(font, "Slot " + (slot.slotIndex + 1) + ": " + slot.slotName, panelLeft + 14, y + 2, CohUiTheme.TEXT_PRIMARY, false);
             graphics.drawString(font, trimLabel(selectedText, 44), panelLeft + 296, y + 2, CohUiTheme.TEXT_SECONDARY, false);
             if (expandedSlot == slot.slotIndex && slot.options != null && !slot.options.isEmpty()) {
-                int optionY = y + 22 + (slot.options.size() * 22);
+                int optionY = y + OPTION_ROW_HEIGHT + (slot.options.size() * OPTION_ROW_HEIGHT);
                 y = Math.min(optionY + 2, panelBottom - 18);
             } else {
-                y += 28;
+                y += ROW_HEIGHT;
             }
         }
 
@@ -209,6 +223,15 @@ public class CohRoleBackpackScreen extends Screen {
             return text.substring(0, Math.max(0, max));
         }
         return text.substring(0, max - 3) + "...";
+    }
+
+    private List<CohModeModels.BackpackSlotView> sortedSlots(CohModeModels.RoleBackpackView roleView) {
+        if (roleView == null || roleView.slots == null) {
+            return List.of();
+        }
+        return roleView.slots.stream()
+                .sorted(Comparator.comparingInt(slot -> slot.slotIndex))
+                .toList();
     }
 
     private ItemStack itemStackOf(String itemId, int count) {

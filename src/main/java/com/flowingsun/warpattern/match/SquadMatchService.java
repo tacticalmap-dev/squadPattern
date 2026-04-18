@@ -1,6 +1,7 @@
 package com.flowingsun.warpattern.match;
 
 import com.flowingsun.vppoints.api.VpPointsApi;
+import com.flowingsun.warpattern.cohmode.CohModeConfig;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -95,91 +96,91 @@ public final class SquadMatchService {
 
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
-        // Keep root command discoverable; admin checks are enforced per management branch.
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("warpattern")
-                // Map setup/editing is host-admin only.
-                .then(Commands.literal("map")
-                        .requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("delete")
-                                .then(Commands.argument("mapName", StringArgumentType.word()).suggests(this::suggestMapNames)
-                                        .executes(ctx -> deleteMap(
+        LiteralArgumentBuilder<CommandSourceStack> map = Commands.literal("map")
+                .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("delete")
+                        .then(Commands.argument("mapName", StringArgumentType.word()).suggests(this::suggestMapNames)
+                                .executes(ctx -> deleteMap(
+                                        ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "mapName")
+                                ))))
+                .then(Commands.literal("import")
+                        .then(Commands.argument("mapName", StringArgumentType.word()).suggests(this::suggestMapNames)
+                                .then(Commands.argument("worldName", StringArgumentType.word())
+                                        .executes(ctx -> importMap(
                                                 ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "mapName")
-                                        ))))
-                        .then(Commands.literal("import")
-                                .then(Commands.argument("mapName", StringArgumentType.word())
-                                        .then(Commands.argument("worldName", StringArgumentType.word())
-                                                .executes(ctx -> importMap(
+                                                StringArgumentType.getString(ctx, "mapName"),
+                                                StringArgumentType.getString(ctx, "worldName")
+                                        )))))
+                .then(Commands.argument("mapName", StringArgumentType.word())
+                        .suggests(this::suggestMapNames)
+                        .then(Commands.literal("bindhere")
+                                .executes(ctx -> bindMapToCurrentWorld(
+                                        ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "mapName")
+                                )))
+                        .then(Commands.literal("spawn")
+                                .then(Commands.literal("red")
+                                        .then(Commands.literal("set")
+                                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                                        .executes(ctx -> setSpawn(
+                                                                                ctx.getSource(),
+                                                                                StringArgumentType.getString(ctx, "mapName"),
+                                                                                "red",
+                                                                                IntegerArgumentType.getInteger(ctx, "x"),
+                                                                                IntegerArgumentType.getInteger(ctx, "y"),
+                                                                                IntegerArgumentType.getInteger(ctx, "z")
+                                                                        )))))))
+                                .then(Commands.literal("blue")
+                                        .then(Commands.literal("set")
+                                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                                        .executes(ctx -> setSpawn(
+                                                                                ctx.getSource(),
+                                                                                StringArgumentType.getString(ctx, "mapName"),
+                                                                                "blue",
+                                                                                IntegerArgumentType.getInteger(ctx, "x"),
+                                                                                IntegerArgumentType.getInteger(ctx, "y"),
+                                                                                IntegerArgumentType.getInteger(ctx, "z")
+                                                                        ))))))))
+                        .then(Commands.literal("bounds")
+                                .then(Commands.literal("set")
+                                        .then(Commands.argument("x1", IntegerArgumentType.integer())
+                                                .then(Commands.argument("y1", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("z1", IntegerArgumentType.integer())
+                                                                .then(Commands.argument("x2", IntegerArgumentType.integer())
+                                                                        .then(Commands.argument("y2", IntegerArgumentType.integer())
+                                                                                .then(Commands.argument("z2", IntegerArgumentType.integer())
+                                                                                        .executes(ctx -> setBoundsByCoords(
+                                                                                                ctx.getSource(),
+                                                                                                StringArgumentType.getString(ctx, "mapName"),
+                                                                                                IntegerArgumentType.getInteger(ctx, "x1"),
+                                                                                                IntegerArgumentType.getInteger(ctx, "y1"),
+                                                                                                IntegerArgumentType.getInteger(ctx, "z1"),
+                                                                                                IntegerArgumentType.getInteger(ctx, "x2"),
+                                                                                                IntegerArgumentType.getInteger(ctx, "y2"),
+                                                                                                IntegerArgumentType.getInteger(ctx, "z2")
+                                                                                        ))))))))))
+                        .then(Commands.literal("save")
+                                .executes(ctx -> savePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName"))))
+                        .then(Commands.literal("recommend")
+                                .then(Commands.argument("minPlayers", IntegerArgumentType.integer(1))
+                                        .then(Commands.argument("maxPlayers", IntegerArgumentType.integer(1))
+                                                .executes(ctx -> setRecommendedPlayers(
                                                         ctx.getSource(),
                                                         StringArgumentType.getString(ctx, "mapName"),
-                                                        StringArgumentType.getString(ctx, "worldName")
+                                                        IntegerArgumentType.getInteger(ctx, "minPlayers"),
+                                                        IntegerArgumentType.getInteger(ctx, "maxPlayers")
                                                 )))))
-                        .then(Commands.argument("mapName", StringArgumentType.word())
-                                .suggests(this::suggestMapNames)
-                                .then(Commands.literal("bindhere")
-                                        .executes(ctx -> bindMapToCurrentWorld(
-                                                ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "mapName")
-                                        )))
-                                .then(Commands.literal("spawn")
-                                        .then(Commands.literal("red")
-                                                .then(Commands.literal("set")
-                                                        .then(Commands.argument("x", IntegerArgumentType.integer())
-                                                                .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                                        .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                                                .executes(ctx -> setSpawn(
-                                                                                        ctx.getSource(),
-                                                                                        StringArgumentType.getString(ctx, "mapName"),
-                                                                                        "red",
-                                                                                        IntegerArgumentType.getInteger(ctx, "x"),
-                                                                                        IntegerArgumentType.getInteger(ctx, "y"),
-                                                                                        IntegerArgumentType.getInteger(ctx, "z")
-                                                                                )))))))
-                                        .then(Commands.literal("blue")
-                                                .then(Commands.literal("set")
-                                                        .then(Commands.argument("x", IntegerArgumentType.integer())
-                                                                .then(Commands.argument("y", IntegerArgumentType.integer())
-                                                                        .then(Commands.argument("z", IntegerArgumentType.integer())
-                                                                                .executes(ctx -> setSpawn(
-                                                                                        ctx.getSource(),
-                                                                                        StringArgumentType.getString(ctx, "mapName"),
-                                                                                        "blue",
-                                                                                        IntegerArgumentType.getInteger(ctx, "x"),
-                                                                                        IntegerArgumentType.getInteger(ctx, "y"),
-                                                                                        IntegerArgumentType.getInteger(ctx, "z")
-                                                                                ))))))))
-                                .then(Commands.literal("bounds")
-                                        .then(Commands.literal("set")
-                                                .then(Commands.argument("x1", IntegerArgumentType.integer())
-                                                        .then(Commands.argument("y1", IntegerArgumentType.integer())
-                                                                .then(Commands.argument("z1", IntegerArgumentType.integer())
-                                                                        .then(Commands.argument("x2", IntegerArgumentType.integer())
-                                                                                .then(Commands.argument("y2", IntegerArgumentType.integer())
-                                                                                        .then(Commands.argument("z2", IntegerArgumentType.integer())
-                                                                                                .executes(ctx -> setBoundsByCoords(
-                                                                                                        ctx.getSource(),
-                                                                                                        StringArgumentType.getString(ctx, "mapName"),
-                                                                                                        IntegerArgumentType.getInteger(ctx, "x1"),
-                                                                                                        IntegerArgumentType.getInteger(ctx, "y1"),
-                                                                                                        IntegerArgumentType.getInteger(ctx, "z1"),
-                                                                                                        IntegerArgumentType.getInteger(ctx, "x2"),
-                                                                                                        IntegerArgumentType.getInteger(ctx, "y2"),
-                                                                                                        IntegerArgumentType.getInteger(ctx, "z2")
-                                                                                                ))))))))))
-                                .then(Commands.literal("save")
-                                        .executes(ctx -> savePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName"))))
-                                .then(Commands.literal("recommend")
-                                        .then(Commands.argument("minPlayers", IntegerArgumentType.integer(1))
-                                                .then(Commands.argument("maxPlayers", IntegerArgumentType.integer(1))
-                                                        .executes(ctx -> setRecommendedPlayers(
-                                                                ctx.getSource(),
-                                                                StringArgumentType.getString(ctx, "mapName"),
-                                                                IntegerArgumentType.getInteger(ctx, "minPlayers"),
-                                                                IntegerArgumentType.getInteger(ctx, "maxPlayers")
-                                                        )))))
-                                .then(Commands.literal("preset")
-                                        .then(Commands.literal("remake")
-                                                .executes(ctx -> remakePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName")))))))
+                        .then(Commands.literal("preset")
+                                .then(Commands.literal("remake")
+                                        .executes(ctx -> remakePreset(ctx.getSource(), StringArgumentType.getString(ctx, "mapName"))))));
+
+        // Keep /warpattern root discoverable for non-map management commands.
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("warpattern")
                 // Explicit preset branch kept for direct access without going through /map.
                 .then(Commands.literal("preset")
                         .requires(source -> source.hasPermission(2))
@@ -233,6 +234,7 @@ public final class SquadMatchService {
                                 .executes(ctx -> endMatchByMapName(ctx.getSource(), StringArgumentType.getString(ctx, "mapName")))));
 
         event.getDispatcher().register(root);
+        event.getDispatcher().register(map);
         event.getDispatcher().register(game);
     }
 
@@ -335,7 +337,9 @@ public final class SquadMatchService {
     }
 
     private CompletableFuture<Suggestions> suggestMapNames(CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(mapPresets.keySet(), builder);
+        List<String> mapNames = new ArrayList<>(mapPresets.keySet());
+        mapNames.sort(String.CASE_INSENSITIVE_ORDER);
+        return SharedSuggestionProvider.suggest(mapNames, builder);
     }
 
     /**
@@ -1461,11 +1465,13 @@ public final class SquadMatchService {
         if (preset == null) {
             return;
         }
+        int defaultMinPlayers = CohModeConfig.mapRecommendedMinPlayersDefault();
+        int defaultMaxPlayers = CohModeConfig.mapRecommendedMaxPlayersDefault();
         if (preset.recommendedMinPlayers <= 0) {
-            preset.recommendedMinPlayers = 2;
+            preset.recommendedMinPlayers = defaultMinPlayers;
         }
         if (preset.recommendedMaxPlayers <= 0) {
-            preset.recommendedMaxPlayers = Math.max(16, preset.recommendedMinPlayers);
+            preset.recommendedMaxPlayers = Math.max(defaultMaxPlayers, preset.recommendedMinPlayers);
         }
         if (preset.recommendedMaxPlayers < preset.recommendedMinPlayers) {
             preset.recommendedMaxPlayers = preset.recommendedMinPlayers;
@@ -1839,8 +1845,8 @@ public final class SquadMatchService {
         BoundPoint bound1;
         BoundPoint bound2;
         boolean saved;
-        int recommendedMinPlayers = 2;
-        int recommendedMaxPlayers = 16;
+        int recommendedMinPlayers;
+        int recommendedMaxPlayers;
     }
 
     private static final class SpawnPoint {

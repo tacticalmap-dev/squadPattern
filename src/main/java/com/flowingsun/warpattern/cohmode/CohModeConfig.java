@@ -15,6 +15,8 @@ public final class CohModeConfig {
     public static final ForgeConfigSpec.IntValue INVITE_EXPIRE_SECONDS;
     public static final ForgeConfigSpec.IntValue RANDOM_MIN_TEAM_SIZE;
     public static final ForgeConfigSpec.IntValue RANDOM_MAX_TEAM_SIZE;
+    public static final ForgeConfigSpec.IntValue MAP_RECOMMENDED_MIN_PLAYERS_DEFAULT;
+    public static final ForgeConfigSpec.IntValue MAP_RECOMMENDED_MAX_PLAYERS_DEFAULT;
     public static final ForgeConfigSpec.IntValue ROOM_MAX_PLAYERS;
 
     static {
@@ -31,10 +33,16 @@ public final class CohModeConfig {
                 .defineInRange("inviteExpireSeconds", 30, 5, 180);
         RANDOM_MIN_TEAM_SIZE = builder
                 .comment("Minimum players per team to launch a random match")
-                .defineInRange("randomMinTeamSize", 2, 1, 32);
+                .defineInRange("randomMinTeamSize", 1, 1, 32);
         RANDOM_MAX_TEAM_SIZE = builder
                 .comment("Maximum players per team to launch a random match")
-                .defineInRange("randomMaxTeamSize", 8, 1, 64);
+                .defineInRange("randomMaxTeamSize", 20, 1, 64);
+        MAP_RECOMMENDED_MIN_PLAYERS_DEFAULT = builder
+                .comment("Default minimum recommended players for maps without explicit settings")
+                .defineInRange("mapRecommendedMinPlayersDefault", 1, 1, 128);
+        MAP_RECOMMENDED_MAX_PLAYERS_DEFAULT = builder
+                .comment("Default maximum recommended players for maps without explicit settings")
+                .defineInRange("mapRecommendedMaxPlayersDefault", 20, 1, 256);
         ROOM_MAX_PLAYERS = builder
                 .comment("Maximum players in one custom room")
                 .defineInRange("roomMaxPlayers", 16, 2, 64);
@@ -67,6 +75,14 @@ public final class CohModeConfig {
 
     public static int randomMaxTeamSize() {
         return Math.max(RANDOM_MAX_TEAM_SIZE.get(), randomMinTeamSize());
+    }
+
+    public static int mapRecommendedMinPlayersDefault() {
+        return MAP_RECOMMENDED_MIN_PLAYERS_DEFAULT.get();
+    }
+
+    public static int mapRecommendedMaxPlayersDefault() {
+        return Math.max(MAP_RECOMMENDED_MAX_PLAYERS_DEFAULT.get(), mapRecommendedMinPlayersDefault());
     }
 
     public static int roomMaxPlayers() {

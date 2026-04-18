@@ -863,7 +863,8 @@ public final class CohModeService {
             roleByPlayer.put(entry.playerId, entry.role == null ? CohModeModels.Role.RIFLEMAN : entry.role);
         }
 
-        Optional<String> map = com.flowingsun.warpattern.match.SquadMatchService.INSTANCE.pickRecommendedMapForPlayers(teamSize * 2);
+        int totalMatchedPlayers = red.size() + blue.size();
+        Optional<String> map = com.flowingsun.warpattern.match.SquadMatchService.INSTANCE.pickRecommendedMapForPlayers(totalMatchedPlayers);
         if (map.isEmpty()) {
             return;
         }
